@@ -25,7 +25,7 @@ function Navbar({ onNavigate, isDesktop = false, isInSidebar = false }) {
     if (isDesktop) {
         // Desktop horizontal navbar
         return (
-            <div className="desktop-navbar" style={{ backgroundColor: '#800020' }}>
+            <div className="desktop-navbar" style={{ backgroundColor: '#1E3A8A' }}>
                 <nav className="desktop-nav-container">
                     <NavItem
                         icon={<Home size={18} />}
@@ -90,7 +90,6 @@ function Navbar({ onNavigate, isDesktop = false, isInSidebar = false }) {
 
     // Mobile behaviour
     if (!isDesktop) {
-        // If Navbar is already rendered inside a sidebar (from layout), show the full vertical items
         if (isInSidebar) {
             return (
                 <div style={{
@@ -116,7 +115,7 @@ function Navbar({ onNavigate, isDesktop = false, isInSidebar = false }) {
                     <div style={{
                         padding: '1rem',
                         borderTop: '1px solid rgba(255, 255, 255, 0.2)',
-                        backgroundColor: '#800020'
+                        backgroundColor: '#1E3A8A'
                     }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                             {user && (
@@ -139,15 +138,12 @@ function Navbar({ onNavigate, isDesktop = false, isInSidebar = false }) {
                 </div>
             )
         }
-
-        // If Navbar is not inside the sidebar, rely on the layout-level hamburger
-        // StudentLayout already renders a hamburger and sidebar; returning null here avoids duplicate drawers.
         return null;
     }
 }
 
 const NavItem = ({ icon, label, to, isActive, onClick, isDesktop = false }) => {
-    const maroon = '#800020'; // 🔴 Maroon color constant
+    const blue = '#1E3A8A'; // deep indigo blue
 
     if (isDesktop) {
         return (
@@ -157,6 +153,9 @@ const NavItem = ({ icon, label, to, isActive, onClick, isDesktop = false }) => {
                 onClick={onClick}
                 title={label}
                 aria-current={isActive ? 'page' : undefined}
+                style={{
+                    color: isActive ? '#3B82F6' : '#E0E7FF'
+                }}
             >
                 <div className="icon-container">{icon}</div>
                 <span className="fw-medium">{label}</span>
@@ -164,19 +163,18 @@ const NavItem = ({ icon, label, to, isActive, onClick, isDesktop = false }) => {
         );
     }
 
-    // For mobile/vertical items use safer event handlers (currentTarget) so child elements don't break styling
     return (
         <Link
             to={to}
             onClick={onClick}
             className={`nav-item mobile-nav-item ${isActive ? 'mobile-active' : ''}`}
             style={{
-                color: isActive ? maroon : 'white'
+                color: isActive ? '#3B82F6' : 'white'
             }}
             onMouseEnter={(e) => {
                 const el = e.currentTarget;
                 if (!isActive) {
-                    el.style.backgroundColor = 'rgba(255, 255, 255, 0.06)';
+                    el.style.backgroundColor = 'rgba(59, 130, 246, 0.06)';
                     el.style.paddingLeft = '1.5rem';
                 }
             }}
@@ -207,6 +205,9 @@ const SidebarNavItem = ({ label, to, isActive, onClick }) => {
             onClick={onClick}
             className={`sidebar-large-item ${isActive ? 'active' : ''}`}
             aria-current={isActive ? 'page' : undefined}
+            style={{
+                color: isActive ? '#3B82F6' : '#E0E7FF'
+            }}
         >
             <span className="sidebar-label">{label}</span>
             <ChevronRight size={18} className="sidebar-arrow" />

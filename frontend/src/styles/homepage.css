@@ -7,6 +7,22 @@
   -webkit-filter: none !important;
 }
 
+/* Exception: Allow glass card and hero section effects */
+.hero-section-custom,
+.hero-section-custom *,
+.glass-card-custom,
+.glass-card-custom * {
+  box-shadow: initial !important;
+  text-shadow: initial !important;
+  filter: initial !important;
+  -webkit-filter: initial !important;
+}
+
+/* Glass card specific styling */
+.glass-card-custom {
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3) !important;
+}
+
 /* If contact cards or gallery items used backgrounds with shadow, make them flat */
 .home-page .contact-card,
 .home-page .gallery-item,
@@ -112,7 +128,94 @@
   color: #111827;
 }
 
+/* Mobile Responsive Styles */
+@media (max-width: 768px) {
+  /* Glass card mobile adjustments */
+  .glass-card-custom {
+    padding: 30px 20px !important;
+    max-width: 90% !important;
+    margin: 0 15px !important;
+  }
+
+  /* Hero section text sizing */
+  .hero-title-custom {
+    font-size: 2rem !important;
+  }
+
+  .hero-subtitle-custom {
+    font-size: 1.3rem !important;
+    margin: 5px 0 0 0 !important;
+  }
+
+  .hero-text-custom {
+    font-size: 0.95rem !important;
+  }
+
+  /* Logo sizing */
+  .glass-card-custom img {
+    width: 70px !important;
+    height: 70px !important;
+  }
+
+  /* Gallery section mobile */
+  .home-page .gallery-image { 
+    height: 180px; 
+  }
+  
+  .home-page .section-title { 
+    font-size: 1.8rem !important;
+  }
+
+  /* Contact grid mobile */
+  .home-page .contact-grid {
+    grid-template-columns: 1fr !important;
+    gap: 1rem !important;
+  }
+}
+
 @media (max-width: 640px) {
-  .home-page .gallery-image { height: 160px; }
-  .home-page .section-title { font-size: 1.4rem; }
+  /* Extra small screens */
+  .glass-card-custom {
+    padding: 25px 15px !important;
+  }
+
+  .hero-title-custom {
+    font-size: 1.8rem !important;
+  }
+
+  .hero-subtitle-custom {
+    font-size: 1.2rem !important;
+  }
+
+  .glass-card-custom img {
+    width: 60px !important;
+    height: 60px !important;
+  }
+
+  .home-page .gallery-image { 
+    height: 160px; 
+  }
+  
+  .home-page .section-title { 
+    font-size: 1.4rem !important;
+  }
+}
+
+@media (max-width: 480px) {
+  /* Very small screens */
+  .glass-card-custom {
+    padding: 20px 12px !important;
+  }
+
+  .hero-title-custom {
+    font-size: 1.5rem !important;
+  }
+
+  .hero-subtitle-custom {
+    font-size: 1.1rem !important;
+  }
+
+  .hero-text-custom {
+    font-size: 0.9rem !important;
+  }
 }

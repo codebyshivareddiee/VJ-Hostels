@@ -3217,6 +3217,38 @@ h1, h2, h3, h4, h5, h6 {
   display: flex;
 }
 
+/* 🧭 Reset body and html to remove all default spacing */
+html,
+body {
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow-x: hidden;
+  background-color: #f9fafb; /* your site background color */
+  box-sizing: border-box;
+  height: 100%;
+  width: 100%;
+  scroll-behavior: smooth; /* optional: smooth scrolling */
+}
+/* Ensure consistent box sizing everywhere */
+*, *::before, *::after {
+  box-sizing: inherit;
+}
+
+/* 🚫 Remove gaps and padding from the homepage container */
+.home-page {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* 🎯 Align hero section flush with the navbar overlay */
+.hero-section-custom {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  padding-top: 0 !important;
+}
+
+
+/* Existing utility classes */
 .d-block {
   display: block;
 }
