@@ -8,6 +8,8 @@ function Navbar({ onNavigate, isDesktop = false, isInSidebar = false }) {
     const { user, loading } = useCurrentUser();
     const location = useLocation();
     const [isMobile, setIsMobile] = useState(false)
+    const [sidebarOpen, setSidebarOpen] = useState(false);
+
 
     useEffect(() => {
         const check = () => setIsMobile(window.innerWidth <= 768)
@@ -21,11 +23,11 @@ function Navbar({ onNavigate, isDesktop = false, isInSidebar = false }) {
             onNavigate();
         }
     };
-
+        
     if (isDesktop) {
         // Desktop horizontal navbar
         return (
-            <div className="desktop-navbar" style={{ backgroundColor: '#1E3A8A' }}>
+            <div className="desktop-navbar" style={{ backgroundColor: '#4F46E5' }}>
                 <nav className="desktop-nav-container">
                     <NavItem
                         icon={<Home size={18} />}

@@ -66,7 +66,7 @@ function StudentLayout() {
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          zIndex: 100,
+          zIndex: 50,
           backdropFilter: 'blur(10px)',
           WebkitBackdropFilter: 'blur(10px)',
           border: '1px solid rgba(255,255,255,0.08)',
@@ -152,6 +152,24 @@ function StudentLayout() {
       {/* Mobile Sidebar */}
       {isMobile && (
         <>
+          {/* Overlay - behind sidebar */}
+          {sidebarOpen && (
+            <div
+              style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                zIndex: 900,
+                backdropFilter: 'blur(2px)',
+              }}
+              onClick={closeSidebar}
+            ></div>
+          )}
+
+          {/* Sidebar - highest z-index */}
           <aside
             style={{
               position: 'fixed',
@@ -162,7 +180,7 @@ function StudentLayout() {
               backgroundColor: '#4F46E5',
               color: 'white',
               boxShadow: '0 10px 25px -3px rgba(0, 0, 0, 0.1)',
-              zIndex: 50,
+              zIndex: 1000,
               transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)',
               transition: 'transform 0.3s ease-in-out',
               overflowY: 'auto',
@@ -175,8 +193,8 @@ function StudentLayout() {
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 padding: '1rem',
-                borderBottom: '1px solid #990000',
-                backgroundColor: '#660000',
+                borderBottom: '1px solid rgba(255, 255, 255, 0.2)',
+                backgroundColor: '#1E3A8A',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -196,6 +214,7 @@ function StudentLayout() {
                   padding: '0.5rem',
                   borderRadius: '0.375rem',
                 }}
+                aria-label="Close sidebar"
               >
                 <X size={24} />
               </button>
@@ -204,22 +223,6 @@ function StudentLayout() {
               <Navbar onNavigate={closeSidebar} isDesktop={false} isInSidebar={true} />
             </div>
           </aside>
-
-          {sidebarOpen && (
-            <div
-              style={{
-                position: 'fixed',
-                top: 0,
-                left: 0,
-                width: '100%',
-                height: '100%',
-                backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                zIndex: 40,
-                backdropFilter: 'blur(2px)',
-              }}
-              onClick={closeSidebar}
-            ></div>
-          )}
         </>
       )}
 
@@ -242,7 +245,8 @@ function StudentLayout() {
             maxWidth: '1800px',
             width: '100%',
             margin: '0 auto',
-            marginTop: '0px', // overlayed: no offset
+            marginTop: '0px',
+            paddingTop: (location.pathname === '/home' || location.pathname === '/home/' || location.pathname === '/student' || location.pathname === '/student/') ? '0px' : (isMobile ? '80px' : '100px'),
           }}
         >
           <Outlet />

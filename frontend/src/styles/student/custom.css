@@ -3955,3 +3955,17 @@ body {
     padding: 1rem 0.9rem;
   }
 }
+
+
+/* Sidebar overlay effect */
+.sidebar-open .top-navbar {
+  z-index: 5; /* Push it backward */
+}
+
+/* Default navbar stays on top when sidebar is closed */
+.top-navbar {
+  position: relative;
+  z-index: 50;
+  transition: z-index 0.3s ease;
+}
+
