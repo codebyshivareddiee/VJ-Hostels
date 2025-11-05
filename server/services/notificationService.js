@@ -162,6 +162,46 @@ class NotificationService {
     }
   }
 
+  async sendMenuChangeAlert(date, mealType, oldValue, newValue) {
+    try {
+      const dateStr = new Date(date).toLocaleDateString('en-US', { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+      
+      const message = `🔔 Menu Update Alert!\n\nDate: ${dateStr}\nMeal: ${mealType.toUpperCase()}\n\nOld Menu: ${oldValue || 'Not set'}\nNew Menu: ${newValue}\n\nThis is an emergency change by the vendor. We apologize for any inconvenience.`;
+      
+      const title = `${mealType.charAt(0).toUpperCase() + mealType.slice(1)} Menu Changed for ${dateStr}`;
+      
+      // Send FCM notification to all students (you'll need to fetch student tokens)
+      console.log('[MENU CHANGE NOTIFICATION]');
+      console.log(`Date: ${dateStr}`);
+      console.log(`Meal Type: ${mealType}`);
+      console.log(`Old Value: ${oldValue || 'Not set'}`);
+      console.log(`New Value: ${newValue}`);
+      console.log('Notification should be sent to all students');
+      
+      // TODO: Implement bulk notification to all active students
+      // This would require fetching all student FCM tokens and sending in batches
+      // For now, logging the notification
+      
+      await this.logNotificationAttempt('system', 'menu_change', {
+        date: date,
+        mealType,
+        oldValue,
+        newValue,
+        changeTime: new Date()
+      });
+      
+      return { success: true, message: 'Menu change notification logged' };
+    } catch (error) {
+      console.error('Failed to send menu change alert:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
   async logNotificationAttempt(studentId, type, meta) {
     try {
       await AuditLog.create({

@@ -132,14 +132,24 @@ const FoodPauseManagerEnhanced = ({ outpassData = null }) => {
 
         switch (type) {
             case 'tomorrow': {
+                // Tomorrow is paused entirely (all meals)
+                // User selects meals for day after tomorrow
                 const tomorrow = new Date();
                 tomorrow.setDate(tomorrow.getDate() + 1);
                 const y = tomorrow.getFullYear();
                 const m = String(tomorrow.getMonth() + 1).padStart(2, '0');
                 const d = String(tomorrow.getDate()).padStart(2, '0');
                 const tmr = `${y}-${m}-${d}`;
+                
+                const dayAfterTomorrow = new Date();
+                dayAfterTomorrow.setDate(dayAfterTomorrow.getDate() + 2);
+                const y2 = dayAfterTomorrow.getFullYear();
+                const m2 = String(dayAfterTomorrow.getMonth() + 1).padStart(2, '0');
+                const d2 = String(dayAfterTomorrow.getDate()).padStart(2, '0');
+                const dat = `${y2}-${m2}-${d2}`;
+                
                 setStartDate(tmr);
-                setEndDate(tmr);
+                setEndDate(dat); // End date is day after tomorrow
                 break;
             }
             case 'weekend': {
@@ -173,26 +183,54 @@ const FoodPauseManagerEnhanced = ({ outpassData = null }) => {
             const allMeals = ['breakfast', 'lunch', 'snacks', 'dinner'];
             const mealOrder = { breakfast: 0, lunch: 1, snacks: 2, dinner: 3 };
             
-            // For custom date range: 
-            // - First day: pause meals NOT selected
-            // - Middle days: pause ALL meals
-            // - Last day: pause meals BEFORE the earliest selected meal
-            if (pauseType === 'custom' && startDate !== endDate) {
-                // Step 1: Create pauses for first day (only non-selected meals are paused)
-                const pausedMealsFirstDay = allMeals.filter(m => !selectedMeals.includes(m));
+            // For "tomorrow" type: pause ALL meals for tomorrow (first day), 
+            // and pause meals NOT selected for day after tomorrow
+            if (pauseType === 'tomorrow') {
+                // Step 1: Pause ALL meals for tomorrow (start date)
+                const pauseDataTomorrow = {
+                    studentId: user.rollNumber,
+                    meals: allMeals, // ALL meals paused for tomorrow
+                    pauseType,
+                    startDate,
+                    endDate: startDate, // Only tomorrow
+                    outpassId: outpassData?._id || null
+                };
+
+                console.log(`[Pause Submit] Tomorrow - Pausing all meals for ${startDate}`);
+                await axios.post(`${import.meta.env.VITE_SERVER_URL}/food-api/enhanced/pause`, pauseDataTomorrow);
+
+                // Step 2: Pause meals NOT selected for day after tomorrow (end date)
+                const pausedMealsDayAfter = allMeals.filter(m => !selectedMeals.includes(m));
                 
+                const pauseDataDayAfter = {
+                    studentId: user.rollNumber,
+                    meals: pausedMealsDayAfter,
+                    pauseType,
+                    startDate: endDate,
+                    endDate: endDate, // Only day after tomorrow
+                    outpassId: outpassData?._id || null
+                };
+
+                console.log(`[Pause Submit] Day after tomorrow (${endDate}) - User will have: ${selectedMeals.join(', ')}`);
+                console.log(`[Pause Submit] Day after tomorrow (${endDate}) - Paused meals: ${pausedMealsDayAfter.join(', ')}`);
+                
+                await axios.post(`${import.meta.env.VITE_SERVER_URL}/food-api/enhanced/pause`, pauseDataDayAfter);
+            }
+            // For custom date range: 
+            // - All middle days: pause ALL meals
+            // - Last day: pause meals BEFORE the earliest selected meal (or all if none selected)
+            else if (pauseType === 'custom' && startDate !== endDate) {
+                // Step 1: Pause ALL meals for first day (start date)
                 const pauseDataFirstDay = {
                     studentId: user.rollNumber,
-                    meals: pausedMealsFirstDay,
+                    meals: allMeals, // ALL meals paused for first day
                     pauseType,
                     startDate,
                     endDate: startDate, // Only first day
                     outpassId: outpassData?._id || null
                 };
 
-                console.log(`[Pause Submit] Custom range - First day (${startDate})`);
-                console.log(`[Pause Submit] pausedMeals on first day: ${pausedMealsFirstDay.join(', ')}`);
-                
+                console.log(`[Pause Submit] Custom range - First day (${startDate}) - Pausing all meals`);
                 await axios.post(`${import.meta.env.VITE_SERVER_URL}/food-api/enhanced/pause`, pauseDataFirstDay);
 
                 // Step 2: Calculate days between first and last day
@@ -220,42 +258,45 @@ const FoodPauseManagerEnhanced = ({ outpassData = null }) => {
                         outpassId: outpassData?._id || null
                     };
 
-                    console.log(`[Pause Submit] Custom range - Middle days (${nextDayStr} to ${dayBeforeLastDayStr})`);
-                    console.log(`[Pause Submit] pausedMeals on middle days: ${allMeals.join(', ')}`);
-                    
+                    console.log(`[Pause Submit] Custom range - Middle days (${nextDayStr} to ${dayBeforeLastDayStr}) - Pausing all meals`);
                     await axios.post(`${import.meta.env.VITE_SERVER_URL}/food-api/enhanced/pause`, pauseDataMiddleDays);
                 }
 
-                // Step 3: Create pauses for last day - pause only meals BEFORE the earliest selected meal on last day
-                // Find the earliest (first) meal user selected for last day
-                const earliestSelectedLastDayMeal = lastDayMeals.length > 0 
-                    ? lastDayMeals.sort((a, b) => mealOrder[a] - mealOrder[b])[0]
-                    : null;
+                // Step 3: For last day, pause meals NOT selected by user
+                const pausedMealsLastDay = allMeals.filter(m => !lastDayMeals.includes(m));
 
-                let pausedMealsLastDay = [];
-                if (earliestSelectedLastDayMeal) {
-                    // Pause all meals that come BEFORE the earliest selected meal on last day
-                    pausedMealsLastDay = allMeals.filter(m => mealOrder[m] < mealOrder[earliestSelectedLastDayMeal]);
+                if (pausedMealsLastDay.length > 0) {
+                    const pauseDataLastDay = {
+                        studentId: user.rollNumber,
+                        meals: pausedMealsLastDay,
+                        pauseType,
+                        startDate: endDate,
+                        endDate: endDate, // Only last day
+                        outpassId: outpassData?._id || null
+                    };
+
+                    console.log(`[Pause Submit] Custom range - Last day (${endDate})`);
+                    console.log(`[Pause Submit] User will have on last day: ${lastDayMeals.join(', ') || 'none'}`);
+                    console.log(`[Pause Submit] Paused meals on last day: ${pausedMealsLastDay.join(', ') || 'none'}`);
+                    
+                    await axios.post(`${import.meta.env.VITE_SERVER_URL}/food-api/enhanced/pause`, pauseDataLastDay);
                 }
-                // If no meals selected on last day, pause all meals
-
-                const pauseDataLastDay = {
+            } else if (pauseType === 'custom' && startDate === endDate) {
+                // For single day custom pause: pause ALL meals
+                const pauseData = {
                     studentId: user.rollNumber,
-                    meals: pausedMealsLastDay,
+                    meals: allMeals, // ALL meals paused for single day
                     pauseType,
-                    startDate: endDate,
-                    endDate: endDate, // Only last day
+                    startDate,
+                    endDate,
                     outpassId: outpassData?._id || null
                 };
 
-                console.log(`[Pause Submit] Custom range - Last day (${endDate})`);
-                console.log(`[Pause Submit] User selected on last day: ${lastDayMeals.join(', ') || 'none'}`);
-                console.log(`[Pause Submit] pausedMeals on last day: ${pausedMealsLastDay.join(', ') || 'none (all meals available)'}`);
-                
-                await axios.post(`${import.meta.env.VITE_SERVER_URL}/food-api/enhanced/pause`, pauseDataLastDay);
+                console.log(`[Pause Submit] Custom single day (${startDate}) - Pausing all meals`);
+                await axios.post(`${import.meta.env.VITE_SERVER_URL}/food-api/enhanced/pause`, pauseData);
             } else {
-                // For Tomorrow and Weekend: apply selected meal pauses to entire range
-                const pausedMealsList = allMeals.filter(m => !selectedMeals.includes(m));
+                // For Weekend: pause all meals for all days in range
+                const pausedMealsList = allMeals; // ALL meals
                 
                 const pauseData = {
                     studentId: user.rollNumber,
@@ -507,13 +548,30 @@ const FoodPauseManagerEnhanced = ({ outpassData = null }) => {
 
                                     {pauseType === 'custom' && (
                                         <div className="row mb-4">
+                                            <div className="col-md-12 mb-3">
+                                                <div className="alert alert-warning">
+                                                    <i className="bi bi-info-circle me-2"></i>
+                                                    <strong>Important:</strong> Minimum pause duration is 1 full day. All meals will be paused from start date until the day before return date.
+                                                </div>
+                                            </div>
                                             <div className="col-md-6">
-                                                <label className="form-label fw-bold">Start Date</label>
+                                                <label className="form-label fw-bold">Start Date (First Day of Pause)</label>
                                                 <input
                                                     type="date"
                                                     className="form-control form-control-lg"
                                                     value={startDate}
-                                                    onChange={(e) => setStartDate(e.target.value)}
+                                                    onChange={(e) => {
+                                                        setStartDate(e.target.value);
+                                                        // Auto-adjust end date if it's not at least 1 day after start
+                                                        if (endDate && endDate <= e.target.value) {
+                                                            const nextDay = new Date(e.target.value);
+                                                            nextDay.setDate(nextDay.getDate() + 1);
+                                                            const y = nextDay.getFullYear();
+                                                            const m = String(nextDay.getMonth() + 1).padStart(2, '0');
+                                                            const d = String(nextDay.getDate()).padStart(2, '0');
+                                                            setEndDate(`${y}-${m}-${d}`);
+                                                        }
+                                                    }}
                                                     min={getMinStartDate()}
                                                     disabled={!!outpassData}
                                                 />
@@ -525,15 +583,26 @@ const FoodPauseManagerEnhanced = ({ outpassData = null }) => {
                                                 )}
                                             </div>
                                             <div className="col-md-6">
-                                                <label className="form-label fw-bold">End Date</label>
+                                                <label className="form-label fw-bold">End Date (Return Day)</label>
                                                 <input
                                                     type="date"
                                                     className="form-control form-control-lg"
                                                     value={endDate}
                                                     onChange={(e) => setEndDate(e.target.value)}
-                                                    min={startDate}
-                                                    disabled={!!outpassData}
+                                                    min={startDate ? (() => {
+                                                        const nextDay = new Date(startDate);
+                                                        nextDay.setDate(nextDay.getDate() + 1);
+                                                        const y = nextDay.getFullYear();
+                                                        const m = String(nextDay.getMonth() + 1).padStart(2, '0');
+                                                        const d = String(nextDay.getDate()).padStart(2, '0');
+                                                        return `${y}-${m}-${d}`;
+                                                    })() : ''}
+                                                    disabled={!!outpassData || !startDate}
                                                 />
+                                                <small className="text-muted d-block mt-2">
+                                                    <i className="bi bi-info-circle me-1"></i>
+                                                    Select meals for this day below
+                                                </small>
                                             </div>
                                         </div>
                                     )}
@@ -556,52 +625,90 @@ const FoodPauseManagerEnhanced = ({ outpassData = null }) => {
                                                 </div>
                                             </div>
 
-                                            <h5 className="mb-3">Select Meals you WILL HAVE</h5>
-                                            <div className="row g-3 mb-4">
-                                                {['breakfast', 'lunch', 'snacks', 'dinner'].map(meal => {
-                                                    const isSelected = selectedMeals.includes(meal);
-                                                    
-                                                    return (
-                                                        <div key={meal} className="col-md-6">
-                                                            <div 
-                                                                className={`card h-100 meal-card ${isSelected ? 'border-success bg-success bg-opacity-10' : 'border-danger'}`}
-                                                                onClick={() => handleMealToggle(meal)}
-                                                                style={{ cursor: 'pointer' }}
-                                                            >
-                                                                <div className="card-body text-center p-3">
-                                                                    <i className={`bi bi-${meal === 'breakfast' ? 'cup-hot' : meal === 'lunch' ? 'bowl' : meal === 'snacks' ? 'cookie' : 'moon'} ${isSelected ? 'text-success' : 'text-danger'} mb-2`} style={{ fontSize: '2rem' }}></i>
-                                                                    <h6 className={`card-title text-capitalize ${isSelected ? 'text-success' : 'text-danger'}`}>
-                                                                        {meal}
-                                                                    </h6>
-                                                                    <p className="card-text small text-muted mb-2">
-                                                                        {mealTimings[meal].start}
-                                                                    </p>
-                                                                    {isSelected && (
-                                                                        <span className="badge bg-success">
-                                                                            <i className="bi bi-check-circle me-1"></i>
-                                                                            WILL HAVE
-                                                                        </span>
-                                                                    )}
+                                            {pauseType === 'tomorrow' && (
+                                                <div className="alert alert-info mb-4">
+                                                    <h6 className="alert-heading">
+                                                        <i className="bi bi-info-circle me-2"></i>
+                                                    NOTE: How it works:
+                                                    </h6>
+                                                    <p className="mb-2"><strong>Tomorrow ({formatDate(startDate)}):</strong> All meals will be paused</p>
+                                                    <p className="mb-0"><strong>Day After ({formatDate(endDate)}):</strong> Select meals you want below</p>
+                                                </div>
+                                            )}
+
+                                            {pauseType !== 'weekend' && pauseType !== 'custom' && (
+                                                <>
+                                                    <h5 className="mb-3">
+                                                        Select Meals you WILL HAVE on {pauseType === 'tomorrow' ? formatDate(endDate) : 'Return Day'}
+                                                    </h5>
+                                                    <div className="row g-3 mb-4">
+                                                        {['breakfast', 'lunch', 'snacks', 'dinner'].map(meal => {
+                                                            const isSelected = selectedMeals.includes(meal);
+                                                            
+                                                            return (
+                                                                <div key={meal} className="col-md-6">
+                                                                    <div 
+                                                                        className={`card h-100 meal-card ${isSelected ? 'border-success bg-success bg-opacity-10' : 'border-danger'}`}
+                                                                        onClick={() => handleMealToggle(meal)}
+                                                                        style={{ cursor: 'pointer' }}
+                                                                    >
+                                                                        <div className="card-body text-center p-3">
+                                                                            <i className={`bi bi-${meal === 'breakfast' ? 'cup-hot' : meal === 'lunch' ? 'bowl' : meal === 'snacks' ? 'cookie' : 'moon'} ${isSelected ? 'text-success' : 'text-danger'} mb-2`} style={{ fontSize: '2rem' }}></i>
+                                                                            <h6 className={`card-title text-capitalize ${isSelected ? 'text-success' : 'text-danger'}`}>
+                                                                                {meal}
+                                                                            </h6>
+                                                                            <p className="card-text small text-muted mb-2">
+                                                                                {mealTimings[meal].start}
+                                                                            </p>
+                                                                            {isSelected && (
+                                                                                <span className="badge bg-success">
+                                                                                    <i className="bi bi-check-circle me-1"></i>
+                                                                                    WILL HAVE
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
                                                                 </div>
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </>
+                                            )}
+
+                                            {/* Weekend option - no meal selection needed */}
+                                            {pauseType === 'weekend' && (
+                                                <div className="alert alert-success mb-4">
+                                                    <h6 className="alert-heading">
+                                                        <i className="bi bi-check-circle me-2"></i>
+                                                        All Weekend Meals Will Be Paused
+                                                    </h6>
+                                                    <p className="mb-0">From {formatDate(startDate)} to {formatDate(endDate)}, all meals (breakfast, lunch, snacks, dinner) will be automatically paused.</p>
+                                                </div>
+                                            )}
 
                                             {/* Last Day Meal Selection for Custom Date Range */}
                                             {pauseType === 'custom' && startDate !== endDate && (
-                                                <div className="card border-3 border-success mb-4">
+                                                <>
+                                                    <div className="alert alert-info mb-3">
+                                                        <h6 className="alert-heading">
+                                                            <i className="bi bi-info-circle me-2"></i>
+                                                            How it works:
+                                                        </h6>
+                                                        <p className="mb-2"><strong>From {formatDate(startDate)} to day before {formatDate(endDate)}:</strong> All meals will be paused</p>
+                                                        <p className="mb-0"><strong>Return Day ({formatDate(endDate)}):</strong> Select meals you want below</p>
+                                                    </div>
+
+                                                    <div className="card border-3 border-success mb-4">
                                                     <div className="card-header bg-success bg-opacity-10 border-success border-bottom">
                                                         <h5 className="mb-0">
                                                             <i className="bi bi-calendar-check me-2"></i>
-                                                            Select Meals You'll Have on Last Day ({formatDate(endDate)})
+                                                            Select Meals You'll Have on Return Day ({formatDate(endDate)})
                                                         </h5>
                                                     </div>
                                                     <div className="card-body">
                                                         <p className="text-muted mb-4">
-                                                            Choose which meals you'll have on <strong>{formatDate(endDate)}</strong>. 
-                                                            Meals before your first selected meal will automatically be paused.
+                                                            Choose which meals you'll have on <strong>{formatDate(endDate)}</strong> when you return. 
+                                                            Meals not selected will be paused.
                                                         </p>
                                                         <div className="row g-3">
                                                             {['breakfast', 'lunch', 'snacks', 'dinner'].map(meal => {
@@ -657,10 +764,8 @@ const FoodPauseManagerEnhanced = ({ outpassData = null }) => {
                                                                     </div>
                                                                     <div className="col-md-6">
                                                                         {(() => {
-                                                                            const mealOrder = { breakfast: 0, lunch: 1, snacks: 2, dinner: 3 };
                                                                             const allMeals = ['breakfast', 'lunch', 'snacks', 'dinner'];
-                                                                            const earliestMeal = lastDayMeals.sort((a, b) => mealOrder[a] - mealOrder[b])[0];
-                                                                            const pausedMeals = allMeals.filter(m => mealOrder[m] < mealOrder[earliestMeal]);
+                                                                            const pausedMeals = allMeals.filter(m => !lastDayMeals.includes(m));
                                                                             
                                                                             return (
                                                                                 <p className="mb-0">
@@ -681,6 +786,7 @@ const FoodPauseManagerEnhanced = ({ outpassData = null }) => {
                                                         )}
                                                     </div>
                                                 </div>
+                                                </>
                                             )}
 
                                             <div className="d-flex gap-4 justify-content-center mb-4">
@@ -690,9 +796,9 @@ const FoodPauseManagerEnhanced = ({ outpassData = null }) => {
                                                 <button
                                                     className="btn me-4"
                                                     onClick={handleSubmit}
-                                                    disabled={submitting || selectedMeals.length === 0 || (pauseType === 'custom' && startDate !== endDate && lastDayMeals.length === 0)}
+                                                    disabled={submitting || (pauseType !== 'weekend' && selectedMeals.length === 0) || (pauseType === 'custom' && startDate !== endDate && lastDayMeals.length === 0)}
                                                     style={{
-                                                        background: (selectedMeals.length === 0 || (pauseType === 'custom' && startDate !== endDate && lastDayMeals.length === 0))
+                                                        background: ((pauseType !== 'weekend' && selectedMeals.length === 0) || (pauseType === 'custom' && startDate !== endDate && lastDayMeals.length === 0))
                                                             ? 'linear-gradient(135deg, #9ca3af 0%, #6b7280 100%)' 
                                                             : 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
                                                         color: 'white',
@@ -701,16 +807,16 @@ const FoodPauseManagerEnhanced = ({ outpassData = null }) => {
                                                         fontWeight: '800',
                                                         fontSize: '1.3rem',
                                                         padding: '15px 40px',
-                                                        boxShadow: (selectedMeals.length === 0 || (pauseType === 'custom' && startDate !== endDate && lastDayMeals.length === 0))
+                                                        boxShadow: ((pauseType !== 'weekend' && selectedMeals.length === 0) || (pauseType === 'custom' && startDate !== endDate && lastDayMeals.length === 0))
                                                             ? '0 10px 25px rgba(156, 163, 175, 0.4)' 
                                                             : '0 10px 25px rgba(139, 92, 246, 0.5)',
                                                         transition: 'all 0.4s ease',
                                                         textTransform: 'uppercase',
                                                         letterSpacing: '1px',
-                                                        cursor: (selectedMeals.length === 0 || (pauseType === 'custom' && startDate !== endDate && lastDayMeals.length === 0)) ? 'not-allowed' : 'pointer'
+                                                        cursor: ((pauseType !== 'weekend' && selectedMeals.length === 0) || (pauseType === 'custom' && startDate !== endDate && lastDayMeals.length === 0)) ? 'not-allowed' : 'pointer'
                                                     }}
                                                     onMouseEnter={(e) => {
-                                                        if (!e.target.disabled && selectedMeals.length > 0 && !(pauseType === 'custom' && startDate !== endDate && lastDayMeals.length === 0)) {
+                                                        if (!e.target.disabled && (pauseType === 'weekend' || selectedMeals.length > 0) && !(pauseType === 'custom' && startDate !== endDate && lastDayMeals.length === 0)) {
                                                             e.target.style.transform = 'translateY(-5px) scale(1.08)';
                                                             e.target.style.boxShadow = '0 15px 35px rgba(139, 92, 246, 0.7)';
                                                             e.target.style.background = 'linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)';
@@ -719,10 +825,10 @@ const FoodPauseManagerEnhanced = ({ outpassData = null }) => {
                                                     onMouseLeave={(e) => {
                                                         if (!e.target.disabled) {
                                                             e.target.style.transform = 'translateY(0) scale(1)';
-                                                            e.target.style.boxShadow = (selectedMeals.length === 0 || (pauseType === 'custom' && startDate !== endDate && lastDayMeals.length === 0))
+                                                            e.target.style.boxShadow = ((pauseType !== 'weekend' && selectedMeals.length === 0) || (pauseType === 'custom' && startDate !== endDate && lastDayMeals.length === 0))
                                                                 ? '0 10px 25px rgba(156, 163, 175, 0.4)' 
                                                                 : '0 10px 25px rgba(139, 92, 246, 0.5)';
-                                                            e.target.style.background = (selectedMeals.length === 0 || (pauseType === 'custom' && startDate !== endDate && lastDayMeals.length === 0))
+                                                            e.target.style.background = ((pauseType !== 'weekend' && selectedMeals.length === 0) || (pauseType === 'custom' && startDate !== endDate && lastDayMeals.length === 0))
                                                                 ? 'linear-gradient(135deg, #9ca3af 0%, #6b7280 100%)' 
                                                                 : 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)';
                                                         }

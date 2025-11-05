@@ -176,11 +176,18 @@ foodApp.post('/admin/menu', verifyAdmin, expressAsyncHandler(async (req, res) =>
 foodApp.get('/admin/feedback', verifyAdmin, expressAsyncHandler(async (req, res) => {
     try {
         const {
-            dateFilter = 'today',
+            dateFilter = 'thisMonth', // Changed default to show more data
             customStartDate,
             customEndDate,
-            mealType = 'all'
+            mealType = 'all',
+            showOnlyWithComments = 'false' // Show all by default
         } = req.query;
+
+        console.log('===== FEEDBACK REQUEST =====');
+        console.log('Query params:', req.query);
+        console.log('Date Filter:', dateFilter);
+        console.log('Meal Type:', mealType);
+        console.log('Show Only With Comments:', showOnlyWithComments);
 
         // Build date filter using dateStr field (YYYY-MM-DD string)
         let startDateStr, endDateStr;
@@ -226,6 +233,15 @@ foodApp.get('/admin/feedback', verifyAdmin, expressAsyncHandler(async (req, res)
                 startDateStr = `${lastMonthYear}-${String(lastMonth + 1).padStart(2, '0')}-01`;
                 endDateStr = `${lastMonthYear}-${String(lastMonth + 1).padStart(2, '0')}-${String(lastMonthDays).padStart(2, '0')}`;
                 break;
+            case 'thisYear':
+                startDateStr = `${today.getFullYear()}-01-01`;
+                endDateStr = todayStr;
+                break;
+            case 'all':
+                // No date filter - return all feedback
+                startDateStr = null;
+                endDateStr = null;
+                break;
             case 'custom':
                 if (customStartDate && customEndDate) {
                     startDateStr = customStartDate;
@@ -236,26 +252,91 @@ foodApp.get('/admin/feedback', verifyAdmin, expressAsyncHandler(async (req, res)
                 }
                 break;
             default:
-                startDateStr = todayStr;
+                // Default to this month
+                startDateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`;
                 endDateStr = todayStr;
         }
 
-        // Build query filter using dateStr
-        let filter = {
-            dateStr: {
-                $gte: startDateStr,
-                $lte: endDateStr
-            }
-        };
+        // Build query filter using $and to properly combine conditions
+        let filter = { $and: [] };
+        
+        // Date filter - only add if not 'all'
+        if (startDateStr && endDateStr) {
+            const startDate = new Date(startDateStr);
+            startDate.setHours(0, 0, 0, 0);
+            
+            const endDate = new Date(endDateStr);
+            endDate.setHours(23, 59, 59, 999);
+            
+            // Use $or to handle both dateStr and date fields for compatibility
+            filter.$and.push({
+                $or: [
+                    {
+                        dateStr: {
+                            $gte: startDateStr,
+                            $lte: endDateStr
+                        }
+                    },
+                    {
+                        date: {
+                            $gte: startDate,
+                            $lte: endDate
+                        }
+                    }
+                ]
+            });
+        }
 
         // Add meal type filter if specified
         if (mealType && mealType !== 'all') {
-            filter.mealType = mealType;
+            filter.$and.push({ mealType: mealType });
         }
 
+        // Only show feedback with comments if requested
+        if (showOnlyWithComments === 'true') {
+            filter.$and.push({ 
+                feedback: { 
+                    $exists: true, 
+                    $ne: '',
+                    $regex: /.+/  // Must have at least one character
+                } 
+            });
+            console.log('Filtering: Only showing feedback WITH comments');
+        } else {
+            console.log('Filtering: Showing ALL feedback (with and without comments)');
+        }
+
+        // If no filters were added, remove the $and wrapper
+        if (filter.$and.length === 0) {
+            filter = {};
+        } else if (filter.$and.length === 1) {
+            // If only one condition, unwrap it
+            filter = filter.$and[0];
+        }
+
+        console.log('Feedback Filter:', JSON.stringify(filter, null, 2));
+        console.log('Date Range:', startDateStr, 'to', endDateStr);
+        console.log('Meal Type:', mealType);
+
+        // First, let's check total count in database
+        const totalCount = await FoodFeedback.countDocuments({});
+        console.log('Total feedback in database:', totalCount);
+
+        // Fetch feedback without student personal information (for privacy)
         const feedback = await FoodFeedback.find(filter)
-            .populate('student_id', 'rollNumber name')
-            .sort({ createdAt: -1 });
+            .select('-student_id -__v') // Exclude student_id and version field
+            .sort({ date: -1, createdAt: -1 }); // Sort by date (newest first), then creation time
+        
+        console.log('Feedback found with filter:', feedback.length);
+        if (feedback.length > 0) {
+            console.log('Sample feedback (first 3):');
+            feedback.slice(0, 3).forEach((f, i) => {
+                console.log(`  ${i + 1}. Date: ${f.dateStr || 'no dateStr'}, Meal: ${f.mealType}, Rating: ${f.rating}`);
+            });
+        } else {
+            console.log('No feedback matched the filter!');
+        }
+        console.log('=============================\n');
         
         res.status(200).json(feedback);
     } catch (error) {

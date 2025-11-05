@@ -7,6 +7,7 @@ const { googleOAuth, getStudentsByHostel } = require('../controllers/studentFood
 const { wardenLogin, wardenLoginUsingBcrypt } = require('../controllers/wardenFoodController');
 const { getMonthlyMenu, updateDayMenu, getCurrentWeek, updateWeekMenu } = require('../controllers/weeklyMenuController');
 const { getDashboardData, getExportData } = require('../controllers/foodAnalyticsControllerFixed');
+const { submitFeedback, getAllFeedback, getFeedbackStats, getStudentFeedback } = require('../controllers/foodFeedbackController');
 
 // Food pause/resume routes
 router.post('/pause', pauseFood);
@@ -33,5 +34,11 @@ router.put('/menu/week', updateWeekMenu);
 // Analytics routes
 router.get('/analytics/dashboard-data', getDashboardData);
 router.get('/analytics/export-data', getExportData);
+
+// Feedback routes
+router.post('/feedback', submitFeedback);
+router.get('/feedback', getAllFeedback);
+router.get('/feedback/stats', getFeedbackStats);
+router.get('/feedback/student/:studentId', getStudentFeedback);
 
 module.exports = router;

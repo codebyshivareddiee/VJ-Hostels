@@ -22,7 +22,17 @@ const foodMenuSchema = new mongoose.Schema({
     snacks: {
         type: String,
         required: false
+    },
+    lastModified: {
+        type: Date,
+        default: Date.now
+    },
+    modificationReason: {
+        type: String,
+        default: 'Regular menu update'
     }
+}, {
+    timestamps: true
 });
 
 // Weekly Food Menu Schema - fixed 4-week rotation template (no month/year)
