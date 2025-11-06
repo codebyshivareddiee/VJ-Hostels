@@ -1,8 +1,9 @@
 require('dotenv').config();
 const mongoose = require('mongoose');
-const { adminUsers, studentUsers } = require('./users');
+const { adminUsers, studentUsers, securityUsers } = require('./users');
 const AdminModel = require('../models/AdminModel');
 const StudentModel = require('../models/StudentModel');
+const GuardModel = require('../models/GuardModel');
 
 const importData = async () => {
     try {
@@ -25,6 +26,13 @@ const importData = async () => {
             await StudentModel.create(student);
         }
         console.log('Student users imported successfully');
+
+        // Clear and Insert security users
+        await GuardModel.deleteMany({});
+        for (const guard of securityUsers) {
+            await GuardModel.create(guard);
+        }
+        console.log('Security users imported successfully');
 
         console.log('All data imported successfully!');
         process.exit(0);

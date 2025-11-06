@@ -2,6 +2,41 @@ const bcrypt = require('bcrypt');
 const mongoose = require('mongoose');
 const AdminModel = require('../models/AdminModel');
 
+const securityUsers = [
+    {
+        username: 'security_vnrvjiet',
+        password: 'security123',
+        name: 'VNRVJIET Security',
+        email: 'security@vnrvjiet.in',
+        role: 'security',
+        phoneNumber: '9876543100',
+        shift: 'day',
+        permissions: {
+            canRequestOTP: true,
+            canVerifyOTP: true,
+            canCheckout: true,
+            canOverride: false,
+            canViewReports: false
+        }
+    },
+    {
+        username: 'karthik_security',
+        password: 'security456',
+        name: 'Karthik Gurram',
+        email: 'gurramkarthik2006@gmail.com',
+        role: 'security',
+        phoneNumber: '9876543101',
+        shift: 'day',
+        permissions: {
+            canRequestOTP: true,
+            canVerifyOTP: true,
+            canCheckout: true,
+            canOverride: false,
+            canViewReports: false
+        }
+    }
+];
+
 const adminUsers = [
     {
         username: 'admin1',
@@ -28,6 +63,8 @@ const studentUsers = [
         email: 'student1@vjhostels.com',
         phoneNumber: '9876543201',
         parentMobileNumber: '9876543210',
+        parentName: 'Parent One',
+        branch: 'CSE',
         role: 'student'
     },
     {
@@ -38,6 +75,8 @@ const studentUsers = [
         email: 'student2@vjhostels.com',
         phoneNumber: '9876543202',
         parentMobileNumber: '9876543211',
+        parentName: 'Parent Two',
+        branch: 'ECE',
         role: 'student'
     },
     {
@@ -48,6 +87,8 @@ const studentUsers = [
         email: 'student3@vjhostels.com',
         phoneNumber: '9876543203',
         parentMobileNumber: '9876543212',
+        parentName: 'Parent Three',
+        branch: 'EEE',
         role: 'student'
     },
     {
@@ -58,6 +99,8 @@ const studentUsers = [
         email: 'student4@vjhostels.com',
         phoneNumber: '9876543204',
         parentMobileNumber: '9876543213',
+        parentName: 'Parent Four',
+        branch: 'MECH',
         role: 'student'
     },
     {
@@ -68,8 +111,10 @@ const studentUsers = [
         email: 'student5@vjhostels.com',
         phoneNumber: '9876543205',
         parentMobileNumber: '9876543214',
+        parentName: 'Parent Five',
+        branch: 'CIVIL',
         role: 'student'
     }
 ];
 
-module.exports = { adminUsers, studentUsers };
+module.exports = { adminUsers, studentUsers, securityUsers };

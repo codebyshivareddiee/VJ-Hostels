@@ -8,7 +8,9 @@ const Guard = require('../models/GuardModel.js');
 const ADMIN_EMAILS = process.env.ADMIN_EMAIL 
     ? process.env.ADMIN_EMAIL.split(',').map(email => email.trim()) 
     : [];
-const SECURITY_EMAIL = process.env.SECURITY_EMAIL;
+const SECURITY_EMAILS = process.env.SECURITY_EMAIL 
+    ? process.env.SECURITY_EMAIL.split(',').map(email => email.trim()) 
+    : [];
 const ALLOWED_EMAIL_DOMAIN = process.env.ALLOWED_EMAIL_DOMAIN || 'vnrvjiet.in';
 
 // Helper to check if email is institutional
@@ -20,6 +22,13 @@ function isInstitutionalEmail(email) {
 function isAdminEmail(email) {
     return ADMIN_EMAILS.some(adminEmail => 
         adminEmail.toLowerCase() === email.toLowerCase()
+    );
+}
+
+// Helper to check if email is a security email
+function isSecurityEmail(email) {
+    return SECURITY_EMAILS.some(securityEmail => 
+        securityEmail.toLowerCase() === email.toLowerCase()
     );
 }
 
@@ -86,7 +95,7 @@ passport.use('google', new GoogleStrategy({
         }
 
         // Check if email matches Security
-        if (email === SECURITY_EMAIL) {
+        if (isSecurityEmail(email)) {
             console.log('✅ Security email detected:', email);
             
             // Try to find guard by email or googleId
