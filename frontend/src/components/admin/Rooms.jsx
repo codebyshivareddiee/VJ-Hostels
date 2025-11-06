@@ -20,7 +20,8 @@ const Rooms = () => {
     const [showForm, setShowForm] = useState(false);
     const [formData, setFormData] = useState({
         roomNumber: '',
-        capacity: 2
+        floor: 1,
+        capacity: 3
     });
     const [formError, setFormError] = useState('');
     const [formSuccess, setFormSuccess] = useState('');
@@ -49,19 +50,26 @@ const Rooms = () => {
     // For unassigning student from room
     const [unassigningRoom, setUnassigningRoom] = useState(false);
 
+    // For syncing rooms
+    const [syncingRooms, setSyncingRooms] = useState(false);
+    const [roomStats, setRoomStats] = useState(null);
+
     // Removed room exchange feature
 
     useEffect(() => {
         fetchRooms();
+        fetchRoomStats();
     }, [activeTab, token]);
 
     const fetchRooms = async () => {
         try {
             setLoading(true);
-            let endpoint = 'rooms';
+            let endpoint = 'rooms/all-with-students';
 
-            if (activeTab !== 'all') {
-                endpoint = `rooms/vacancy?status=${activeTab}`;
+            if (activeTab === 'vacant') {
+                endpoint = 'rooms/vacancy?status=vacant';
+            } else if (activeTab === 'occupied') {
+                endpoint = 'rooms/vacancy?status=occupied';
             }
 
             const response = await axios.get(`${import.meta.env.VITE_SERVER_URL}/admin-api/${endpoint}`, {
@@ -76,6 +84,19 @@ const Rooms = () => {
             console.error(err);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchRoomStats = async () => {
+        try {
+            const response = await axios.get(`${import.meta.env.VITE_SERVER_URL}/admin-api/rooms/statistics`, {
+                headers: {
+                    Authorization: `Bearer ${token}`
+                }
+            });
+            setRoomStats(response.data);
+        } catch (err) {
+            console.error('Failed to load room statistics', err);
         }
     };
 
@@ -121,7 +142,8 @@ const Rooms = () => {
             setFormSuccess('Room created successfully!');
             setFormData({
                 roomNumber: '',
-                capacity: 2
+                floor: 1,
+                capacity: 3
             });
             fetchRooms();
             setTimeout(() => {
@@ -143,6 +165,51 @@ const Rooms = () => {
 
 
 
+    const handleSyncRooms = async () => {
+        if (!window.confirm('This will sync all students to their assigned rooms based on the database.\n\nAny missing rooms will be created automatically.\n\nContinue?')) {
+            return;
+        }
+
+        try {
+            setSyncingRooms(true);
+            const response = await axios.post(`${import.meta.env.VITE_SERVER_URL}/admin-api/rooms/sync`,
+                {},
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    }
+                }
+            );
+            
+            const { sync, statistics, warnings } = response.data;
+            
+            let message = `✅ Student-Room Sync Complete!\n\n` +
+                `👥 Students Synced: ${sync.studentsProcessed}\n` +
+                `🔄 Rooms Updated: ${sync.roomsUpdated}\n` +
+                `🏠 Unique Rooms: ${sync.uniqueRooms}\n`;
+            
+            if (sync.roomsCreated > 0) {
+                message += `✨ Rooms Created: ${sync.roomsCreated}\n`;
+            }
+            
+            message += `\n📊 Occupancy: ${statistics.totalOccupied}/${statistics.totalCapacity} (${statistics.occupancyRate}%)`;
+            
+            if (warnings) {
+                message += `\n\n⚠️ Warning: ${warnings.message}`;
+            }
+            
+            alert(message);
+            
+            fetchRooms();
+            fetchRoomStats();
+        } catch (err) {
+            alert('Failed to sync rooms: ' + (err.response?.data?.error || err.message));
+            console.error(err);
+        } finally {
+            setSyncingRooms(false);
+        }
+    };
+
     const handleAllocateRooms = async () => {
         if (!window.confirm('This will allocate rooms to students who don\'t have a room assigned. Continue?')) {
             return;
@@ -160,6 +227,7 @@ const Rooms = () => {
             );
             alert(response.data.message);
             fetchRooms();
+            fetchRoomStats();
         } catch (err) {
             alert('Failed to allocate rooms: ' + (err.response?.data?.error || err.message));
             console.error(err);
@@ -305,6 +373,20 @@ const Rooms = () => {
                 <h2>Room Management</h2>
                 <div className="d-flex gap-2">
                     <button
+                        className="btn btn-success"
+                        onClick={handleSyncRooms}
+                        disabled={syncingRooms}
+                        title="Sync students to their assigned rooms"
+                    >
+                        {syncingRooms ? (
+                            <>
+                                <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                Syncing...
+                            </>
+                        ) : '🔄 Sync Students to Rooms'}
+                    </button>
+
+                    <button
                         className="btn btn-warning"
                         onClick={handleAllocateRooms}
                         disabled={allocatingRooms}
@@ -314,7 +396,7 @@ const Rooms = () => {
                                 <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
                                 Allocating...
                             </>
-                        ) : 'Allocate Rooms to Students'}
+                        ) : 'Allocate Unassigned Students'}
                     </button>
 
                     <button
@@ -325,6 +407,54 @@ const Rooms = () => {
                     </button>
                 </div>
             </div>
+
+            {/* Room Statistics Card */}
+            {roomStats && (
+                <div className="card mb-4 bg-light">
+                    <div className="card-body">
+                        <div className="row text-center">
+                            <div className="col-md-2">
+                                <h5 className="text-primary">{roomStats.totalRooms}</h5>
+                                <small className="text-muted">Total Rooms</small>
+                            </div>
+                            <div className="col-md-2">
+                                <h5 className="text-success">{roomStats.totalOccupied}</h5>
+                                <small className="text-muted">Students Housed</small>
+                            </div>
+                            <div className="col-md-2">
+                                <h5 className="text-info">{roomStats.totalCapacity}</h5>
+                                <small className="text-muted">Total Capacity</small>
+                            </div>
+                            <div className="col-md-2">
+                                <h5 className="text-danger">{roomStats.fullyOccupiedRooms}</h5>
+                                <small className="text-muted">Fully Occupied</small>
+                            </div>
+                            <div className="col-md-2">
+                                <h5 className="text-warning">{roomStats.partiallyOccupiedRooms}</h5>
+                                <small className="text-muted">Partially Filled</small>
+                            </div>
+                            <div className="col-md-2">
+                                <h5 className="text-secondary">{roomStats.vacantRooms}</h5>
+                                <small className="text-muted">Vacant</small>
+                            </div>
+                        </div>
+                        <div className="mt-3">
+                            <div className="progress" style={{ height: '25px' }}>
+                                <div 
+                                    className="progress-bar bg-success" 
+                                    role="progressbar" 
+                                    style={{ width: `${roomStats.occupancyRate}%` }}
+                                    aria-valuenow={roomStats.occupancyRate} 
+                                    aria-valuemin="0" 
+                                    aria-valuemax="100"
+                                >
+                                    {roomStats.occupancyRate}% Occupancy
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {showForm && (
                 <div className="card mb-4">
@@ -344,7 +474,7 @@ const Rooms = () => {
                         )}
                         <form onSubmit={handleSubmit}>
                             <div className="row g-3">
-                                <div className="col-md-6">
+                                <div className="col-md-4">
                                     <label htmlFor="roomNumber" className="form-label">Room Number</label>
                                     <input
                                         type="text"
@@ -353,10 +483,26 @@ const Rooms = () => {
                                         name="roomNumber"
                                         value={formData.roomNumber}
                                         onChange={handleInputChange}
+                                        placeholder="e.g., 101, 1201"
                                         required
                                     />
                                 </div>
-                                <div className="col-md-6">
+                                <div className="col-md-4">
+                                    <label htmlFor="floor" className="form-label">Floor</label>
+                                    <select
+                                        className="form-select"
+                                        id="floor"
+                                        name="floor"
+                                        value={formData.floor}
+                                        onChange={handleInputChange}
+                                        required
+                                    >
+                                        {[...Array(12)].map((_, i) => (
+                                            <option key={i+1} value={i+1}>Floor {i+1}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="col-md-4">
                                     <label htmlFor="capacity" className="form-label">Capacity</label>
                                     <select
                                         className="form-select"
@@ -368,6 +514,7 @@ const Rooms = () => {
                                     >
                                         <option value="2">2 Sharing</option>
                                         <option value="3">3 Sharing</option>
+                                        <option value="4">4 Sharing</option>
                                     </select>
                                 </div>
                                 <div className="col-12 mt-4">
