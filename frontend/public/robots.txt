@@ -1,0 +1,28 @@
+# VNR Hostel Management System - Robots.txt
+# https://www.robotstxt.org/robotstxt.html
+
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /student/
+Disallow: /security/
+Disallow: /api/
+
+# Sitemap location
+Sitemap: https://dev-hostel.vjstartup.com/sitemap.xml
+
+# Crawl-delay for polite crawling
+Crawl-delay: 10
+
+# Specific rules for major search engines
+User-agent: Googlebot
+Allow: /
+Disallow: /admin/
+Disallow: /student/
+Disallow: /security/
+
+User-agent: Bingbot
+Allow: /
+Disallow: /admin/
+Disallow: /student/
+Disallow: /security/
