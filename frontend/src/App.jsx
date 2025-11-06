@@ -9,11 +9,19 @@ import SecurityPage from './pages/SecurityPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import PublicRoute from './components/PublicRoute';
 import { AdminProvider } from './context/AdminContext';
+import GoogleAnalytics from './utils/analytics';
+
+// Initialize performance monitoring
+import { initPerformanceMonitoring } from './utils/performance';
+initPerformanceMonitoring();
 
 function App() {
   return (
     <AdminProvider>
       <Router>
+      {/* Google Analytics - Replace 'G-XXXXXXXXXX' with your actual Measurement ID */}
+      <GoogleAnalytics measurementId="G-XXXXXXXXXX" />
+      
       <div className="App">
         <Toaster 
           position="top-right"

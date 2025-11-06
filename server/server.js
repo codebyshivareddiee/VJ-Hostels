@@ -22,7 +22,13 @@ const outpassApp = require('./APIs/outpassAPI');
 const otpRoutes = require('./routes/otpRoutes');
 // const complaintApp = require('./APIs/complaintAPI');
 
+// Import SEO configuration
+const { setupSEOMiddleware } = require('./config/seoConfig');
+
 // middleware
+// Apply SEO middleware (compression, security headers, etc.)
+setupSEOMiddleware(app);
+
 // CORS Configuration - Allow frontend origin with credentials support
 app.use(cors({
   origin: [
@@ -30,6 +36,7 @@ app.use(cors({
     'http://localhost:5174',  // Alternative Vite port
     'http://localhost:3101',  // Previous frontend port
     'http://localhost:3201',  // Current frontend port (React on 3201)
+    'https://dev-hostel.vjstartup.com', // Production domain
   ],
   credentials: true, // Allow cookies and authorization headers
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'], // Allowed HTTP methods
@@ -176,6 +183,10 @@ app.use((req, res, next) => {
   }
   next();
 });
+
+// Serve SEO files (robots.txt, sitemap.xml, manifest.json)
+const seoConfig = require('./config/seoConfig');
+seoConfig.setupSEOFiles(app);
 
 // Serve frontend for all other routes
 const path = require('path');
