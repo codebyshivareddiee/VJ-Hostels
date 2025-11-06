@@ -13,6 +13,7 @@ const FoodPauseManagerEnhanced = ({ outpassData = null }) => {
     const [endDate, setEndDate] = useState('');
     const [selectedMeals, setSelectedMeals] = useState([]);
     const [lastDayMeals, setLastDayMeals] = useState([]); // For custom date last day
+    const [weekendMeals, setWeekendMeals] = useState([]); // For weekend Monday return day
     const [message, setMessage] = useState(null);
     const [submitting, setSubmitting] = useState(false);
     const [todayDate, setTodayDate] = useState('');
@@ -166,12 +167,136 @@ const FoodPauseManagerEnhanced = ({ outpassData = null }) => {
         setStep(2);
     };
 
-    const handleMealToggle = (meal) => {
-        setSelectedMeals(prev => 
-            prev.includes(meal) 
-                ? prev.filter(m => m !== meal)
-                : [...prev, meal]
-        );
+    const handleMealToggle = (meal, dateToCheck = null) => {
+        // Check if meal is already paused for the date
+        if (dateToCheck && isMealAlreadyPaused(meal, dateToCheck)) {
+            return; // Don't allow toggling if already paused
+        }
+        
+        const mealOrder = ['breakfast', 'lunch', 'snacks', 'dinner'];
+        const mealIndex = mealOrder.indexOf(meal);
+        
+        setSelectedMeals(prev => {
+            // Check if this meal is auto-selected (not the first selected meal)
+            const selectedIndices = prev.map(m => mealOrder.indexOf(m));
+            if (selectedIndices.length > 0) {
+                const earliestSelectedIndex = Math.min(...selectedIndices);
+                const currentMealIndex = mealOrder.indexOf(meal);
+                
+                // If this meal is after the first selected meal, don't allow deselection
+                if (currentMealIndex > earliestSelectedIndex && prev.includes(meal)) {
+                    return prev; // Don't allow deselecting auto-selected meals
+                }
+                
+                // If trying to select a meal that's before the current first meal
+                if (currentMealIndex < earliestSelectedIndex && !prev.includes(meal)) {
+                    // Clear all and select from this new meal
+                    const mealsToSelect = mealOrder.slice(currentMealIndex);
+                    return mealsToSelect;
+                }
+                
+                // If trying to deselect the first meal, clear all selections
+                if (currentMealIndex === earliestSelectedIndex && prev.includes(meal)) {
+                    return [];
+                }
+            }
+            
+            // If no meals selected yet, select this meal and all after it
+            if (!prev.includes(meal)) {
+                const mealsToSelect = mealOrder.slice(mealIndex);
+                return mealsToSelect;
+            }
+            
+            return prev;
+        });
+    };
+
+    const handleLastDayMealToggle = (meal) => {
+        // Check if meal is already paused for the end date
+        if (isMealAlreadyPaused(meal, endDate)) {
+            return; // Don't allow toggling if already paused
+        }
+        
+        const mealOrder = ['breakfast', 'lunch', 'snacks', 'dinner'];
+        const mealIndex = mealOrder.indexOf(meal);
+        
+        setLastDayMeals(prev => {
+            // Check if this meal is auto-selected (not the first selected meal)
+            const selectedIndices = prev.map(m => mealOrder.indexOf(m));
+            if (selectedIndices.length > 0) {
+                const earliestSelectedIndex = Math.min(...selectedIndices);
+                const currentMealIndex = mealOrder.indexOf(meal);
+                
+                // If this meal is after the first selected meal, don't allow deselection
+                if (currentMealIndex > earliestSelectedIndex && prev.includes(meal)) {
+                    return prev; // Don't allow deselecting auto-selected meals
+                }
+                
+                // If trying to select a meal that's before the current first meal
+                if (currentMealIndex < earliestSelectedIndex && !prev.includes(meal)) {
+                    // Clear all and select from this new meal
+                    const mealsToSelect = mealOrder.slice(currentMealIndex);
+                    return mealsToSelect;
+                }
+                
+                // If trying to deselect the first meal, clear all selections
+                if (currentMealIndex === earliestSelectedIndex && prev.includes(meal)) {
+                    return [];
+                }
+            }
+            
+            // If no meals selected yet, select this meal and all after it
+            if (!prev.includes(meal)) {
+                const mealsToSelect = mealOrder.slice(mealIndex);
+                return mealsToSelect;
+            }
+            
+            return prev;
+        });
+    };
+
+    const handleWeekendMealToggle = (meal) => {
+        // Check if meal is already paused for Monday (end date)
+        if (isMealAlreadyPaused(meal, endDate)) {
+            return; // Don't allow toggling if already paused
+        }
+        
+        const mealOrder = ['breakfast', 'lunch', 'snacks', 'dinner'];
+        const mealIndex = mealOrder.indexOf(meal);
+        
+        setWeekendMeals(prev => {
+            // Check if this meal is auto-selected (not the first selected meal)
+            const selectedIndices = prev.map(m => mealOrder.indexOf(m));
+            if (selectedIndices.length > 0) {
+                const earliestSelectedIndex = Math.min(...selectedIndices);
+                const currentMealIndex = mealOrder.indexOf(meal);
+                
+                // If this meal is after the first selected meal, don't allow deselection
+                if (currentMealIndex > earliestSelectedIndex && prev.includes(meal)) {
+                    return prev; // Don't allow deselecting auto-selected meals
+                }
+                
+                // If trying to select a meal that's before the current first meal
+                if (currentMealIndex < earliestSelectedIndex && !prev.includes(meal)) {
+                    // Clear all and select from this new meal
+                    const mealsToSelect = mealOrder.slice(currentMealIndex);
+                    return mealsToSelect;
+                }
+                
+                // If trying to deselect the first meal, clear all selections
+                if (currentMealIndex === earliestSelectedIndex && prev.includes(meal)) {
+                    return [];
+                }
+            }
+            
+            // If no meals selected yet, select this meal and all after it
+            if (!prev.includes(meal)) {
+                const mealsToSelect = mealOrder.slice(mealIndex);
+                return mealsToSelect;
+            }
+            
+            return prev;
+        });
     };
 
     const handleSubmit = async () => {
@@ -294,24 +419,47 @@ const FoodPauseManagerEnhanced = ({ outpassData = null }) => {
 
                 console.log(`[Pause Submit] Custom single day (${startDate}) - Pausing all meals`);
                 await axios.post(`${import.meta.env.VITE_SERVER_URL}/food-api/enhanced/pause`, pauseData);
-            } else {
-                // For Weekend: pause all meals for all days in range
-                const pausedMealsList = allMeals; // ALL meals
+            } else if (pauseType === 'weekend') {
+                // For Weekend: pause all meals from Friday to Sunday
+                // Then pause only selected meals for Monday (return day)
                 
-                const pauseData = {
+                // Calculate Sunday (one day before Monday which is endDate)
+                const mondayDate = new Date(endDate);
+                const sundayDate = new Date(mondayDate);
+                sundayDate.setDate(mondayDate.getDate() - 1);
+                const sundayStr = `${sundayDate.getFullYear()}-${String(sundayDate.getMonth() + 1).padStart(2, '0')}-${String(sundayDate.getDate()).padStart(2, '0')}`;
+                
+                // Step 1: Pause ALL meals from Friday to Sunday
+                const pauseDataWeekend = {
                     studentId: user.rollNumber,
-                    meals: pausedMealsList,
+                    meals: allMeals, // ALL meals paused for Friday to Sunday
                     pauseType,
-                    startDate,
-                    endDate,
+                    startDate, // Friday
+                    endDate: sundayStr, // Sunday
                     outpassId: outpassData?._id || null
                 };
 
-                console.log(`[Pause Submit] pauseType: ${pauseType}`);
-                console.log(`[Pause Submit] Date range: ${startDate} to ${endDate}`);
-                console.log(`[Pause Submit] pausedMeals: ${pausedMealsList.join(', ')}`);
+                console.log(`[Pause Submit] Weekend - Pausing all meals from ${startDate} (Friday) to ${sundayStr} (Sunday)`);
+                await axios.post(`${import.meta.env.VITE_SERVER_URL}/food-api/enhanced/pause`, pauseDataWeekend);
+
+                // Step 2: Pause meals NOT selected for Monday (return day)
+                const pausedMealsMonday = allMeals.filter(m => !weekendMeals.includes(m));
                 
-                await axios.post(`${import.meta.env.VITE_SERVER_URL}/food-api/enhanced/pause`, pauseData);
+                if (pausedMealsMonday.length > 0) {
+                    const pauseDataMonday = {
+                        studentId: user.rollNumber,
+                        meals: pausedMealsMonday,
+                        pauseType,
+                        startDate: endDate, // Monday
+                        endDate: endDate, // Monday
+                        outpassId: outpassData?._id || null
+                    };
+
+                    console.log(`[Pause Submit] Weekend - Monday (${endDate}) - User will have: ${weekendMeals.join(', ') || 'none'}`);
+                    console.log(`[Pause Submit] Weekend - Monday (${endDate}) - Paused meals: ${pausedMealsMonday.join(', ')}`);
+                    
+                    await axios.post(`${import.meta.env.VITE_SERVER_URL}/food-api/enhanced/pause`, pauseDataMonday);
+                }
             }
             
             setMessage({ type: 'success', text: 'Food pause created successfully!' });
@@ -344,6 +492,7 @@ const FoodPauseManagerEnhanced = ({ outpassData = null }) => {
         setEndDate('');
         setSelectedMeals([]);
         setLastDayMeals([]);
+        setWeekendMeals([]);
     };
 
     const formatDate = (dateString) => {
@@ -369,6 +518,178 @@ const FoodPauseManagerEnhanced = ({ outpassData = null }) => {
             return currentTime < mealTimings[meal].editDeadline;
         }
         return pauseDate > currentDate;
+    };
+
+    // Check if a meal is already paused for a specific date
+    const isMealAlreadyPaused = (meal, dateToCheck) => {
+        if (!dateToCheck) return false;
+        
+        return pausedMeals.some(pause => 
+            pause.meal_type === meal &&
+            pause.pause_start_date <= dateToCheck &&
+            pause.pause_end_date >= dateToCheck &&
+            pause.is_active
+        );
+    };
+
+    // Check if a meal should show "NO NEED" badge (for tomorrow scenario)
+    const shouldShowNoNeed = (meal) => {
+        const mealOrder = ['breakfast', 'lunch', 'snacks', 'dinner'];
+        const mealIndex = mealOrder.indexOf(meal);
+        
+        // Find the earliest selected meal
+        const selectedIndices = selectedMeals.map(m => mealOrder.indexOf(m));
+        if (selectedIndices.length === 0) return false;
+        
+        const earliestSelectedIndex = Math.min(...selectedIndices);
+        
+        // Show "NO NEED" for meals before the earliest selected meal
+        return mealIndex < earliestSelectedIndex;
+    };
+
+    // Check if a meal should show "NO NEED" badge (for custom last day scenario)
+    const shouldShowNoNeedLastDay = (meal) => {
+        const mealOrder = ['breakfast', 'lunch', 'snacks', 'dinner'];
+        const mealIndex = mealOrder.indexOf(meal);
+        
+        // Find the earliest selected meal
+        const selectedIndices = lastDayMeals.map(m => mealOrder.indexOf(m));
+        if (selectedIndices.length === 0) return false;
+        
+        const earliestSelectedIndex = Math.min(...selectedIndices);
+        
+        // Show "NO NEED" for meals before the earliest selected meal
+        return mealIndex < earliestSelectedIndex;
+    };
+
+    // Check if a meal is auto-selected and should be locked (for tomorrow scenario)
+    const isAutoSelected = (meal) => {
+        const mealOrder = ['breakfast', 'lunch', 'snacks', 'dinner'];
+        const mealIndex = mealOrder.indexOf(meal);
+        
+        const selectedIndices = selectedMeals.map(m => mealOrder.indexOf(m));
+        if (selectedIndices.length === 0) return false;
+        
+        const earliestSelectedIndex = Math.min(...selectedIndices);
+        
+        // A meal is auto-selected if it's selected and comes after the first selected meal
+        return selectedMeals.includes(meal) && mealIndex > earliestSelectedIndex;
+    };
+
+    // Check if a meal is auto-selected and should be locked (for custom last day scenario)
+    const isAutoSelectedLastDay = (meal) => {
+        const mealOrder = ['breakfast', 'lunch', 'snacks', 'dinner'];
+        const mealIndex = mealOrder.indexOf(meal);
+        
+        const selectedIndices = lastDayMeals.map(m => mealOrder.indexOf(m));
+        if (selectedIndices.length === 0) return false;
+        
+        const earliestSelectedIndex = Math.min(...selectedIndices);
+        
+        // A meal is auto-selected if it's selected and comes after the first selected meal
+        return lastDayMeals.includes(meal) && mealIndex > earliestSelectedIndex;
+    };
+
+    // Check if a meal should show "NO NEED" badge (for weekend Monday scenario)
+    const shouldShowNoNeedWeekend = (meal) => {
+        const mealOrder = ['breakfast', 'lunch', 'snacks', 'dinner'];
+        const mealIndex = mealOrder.indexOf(meal);
+        
+        // Find the earliest selected meal
+        const selectedIndices = weekendMeals.map(m => mealOrder.indexOf(m));
+        if (selectedIndices.length === 0) return false;
+        
+        const earliestSelectedIndex = Math.min(...selectedIndices);
+        
+        // Show "NO NEED" for meals before the earliest selected meal
+        return mealIndex < earliestSelectedIndex;
+    };
+
+    // Check if a meal is auto-selected and should be locked (for weekend Monday scenario)
+    const isAutoSelectedWeekend = (meal) => {
+        const mealOrder = ['breakfast', 'lunch', 'snacks', 'dinner'];
+        const mealIndex = mealOrder.indexOf(meal);
+        
+        const selectedIndices = weekendMeals.map(m => mealOrder.indexOf(m));
+        if (selectedIndices.length === 0) return false;
+        
+        const earliestSelectedIndex = Math.min(...selectedIndices);
+        
+        // A meal is auto-selected if it's selected and comes after the first selected meal
+        return weekendMeals.includes(meal) && mealIndex > earliestSelectedIndex;
+    };
+
+    // Check if a paused meal can be edited (5 hours before meal time)
+    const canEditPausedMeal = (meal, pauseDate) => {
+        const now = new Date();
+        
+        // Get current date in local timezone
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const currentDate = `${year}-${month}-${day}`;
+        
+        // If pause date is in the future, can always edit
+        if (pauseDate > currentDate) {
+            return true;
+        }
+        
+        // If pause date is today, check if we're at least 5 hours before meal time
+        if (pauseDate === currentDate) {
+            const mealStartTime = mealTimings[meal].start;
+            const [mealHour, mealMinute] = mealStartTime.split(':').map(Number);
+            
+            // Calculate 5 hours before meal time
+            const editDeadlineHour = mealHour - 5;
+            const editDeadlineMinute = mealMinute;
+            
+            const currentHour = now.getHours();
+            const currentMinute = now.getMinutes();
+            
+            // Convert to minutes for easy comparison
+            const currentTotalMinutes = currentHour * 60 + currentMinute;
+            const editDeadlineTotalMinutes = editDeadlineHour * 60 + editDeadlineMinute;
+            
+            return currentTotalMinutes < editDeadlineTotalMinutes;
+        }
+        
+        // Past dates cannot be edited
+        return false;
+    };
+
+    // Handle editing a paused meal (canceling the pause)
+    const handleEditPausedMeal = async (meal, dateToCheck) => {
+        if (!canEditPausedMeal(meal, dateToCheck)) {
+            setMessage({ 
+                type: 'error', 
+                text: `Cannot edit ${meal}. You can only edit pauses at least 5 hours before the meal is served.` 
+            });
+            return;
+        }
+
+        // Find the pause entry for this meal and date
+        const pauseEntry = pausedMeals.find(pause => 
+            pause.meal_type === meal &&
+            pause.pause_start_date <= dateToCheck &&
+            pause.pause_end_date >= dateToCheck &&
+            pause.is_active
+        );
+
+        if (!pauseEntry) {
+            setMessage({ type: 'error', text: 'Pause entry not found.' });
+            return;
+        }
+
+        try {
+            await axios.delete(`${import.meta.env.VITE_SERVER_URL}/food-api/enhanced/pause/${pauseEntry._id}`);
+            setMessage({ type: 'success', text: `${meal} pause cancelled successfully!` });
+            fetchPausedMeals();
+        } catch (error) {
+            setMessage({ 
+                type: 'error', 
+                text: error.response?.data?.error || 'Failed to cancel pause.' 
+            });
+        }
     };
 
     const categorizesPauses = () => {
@@ -639,33 +960,103 @@ const FoodPauseManagerEnhanced = ({ outpassData = null }) => {
                                             {pauseType !== 'weekend' && pauseType !== 'custom' && (
                                                 <>
                                                     <h5 className="mb-3">
-                                                        Select Meals you WILL HAVE on {pauseType === 'tomorrow' ? formatDate(endDate) : 'Return Day'}
+                                                        Select Your First Meal on {pauseType === 'tomorrow' ? formatDate(endDate) : 'Return Day'}
                                                     </h5>
+                                                    <div className="alert alert-info mb-3">
+                                                        <i className="bi bi-lightbulb-fill me-2"></i>
+                                                        <strong>Smart Selection:</strong> Select your first meal when you return. All meals after it will be automatically included and locked. You can only change your first meal to adjust your plan.
+                                                        <ul className="mb-0 mt-2">
+                                                            <li><strong>Example:</strong> Select Breakfast → You'll have all 4 meals</li>
+                                                            <li><strong>Example:</strong> Select Lunch → You'll have Lunch, Snacks & Dinner (Breakfast marked as "NO NEED")</li>
+                                                        </ul>
+                                                    </div>
                                                     <div className="row g-3 mb-4">
                                                         {['breakfast', 'lunch', 'snacks', 'dinner'].map(meal => {
                                                             const isSelected = selectedMeals.includes(meal);
+                                                            const isPaused = isMealAlreadyPaused(meal, endDate);
+                                                            const showNoNeed = shouldShowNoNeed(meal);
+                                                            const isLocked = isAutoSelected(meal);
+                                                            const canEdit = isPaused && canEditPausedMeal(meal, endDate);
                                                             
                                                             return (
                                                                 <div key={meal} className="col-md-6">
                                                                     <div 
-                                                                        className={`card h-100 meal-card ${isSelected ? 'border-success bg-success bg-opacity-10' : 'border-danger'}`}
-                                                                        onClick={() => handleMealToggle(meal)}
-                                                                        style={{ cursor: 'pointer' }}
+                                                                        className={`card h-100 meal-card ${
+                                                                            isPaused ? 'border-danger bg-danger bg-opacity-10' : 
+                                                                            showNoNeed ? 'border-danger bg-danger bg-opacity-10' :
+                                                                            isSelected ? 'border-success bg-success bg-opacity-10' : 
+                                                                            'border-secondary'
+                                                                        }`}
+                                                                        onClick={() => !isPaused && !showNoNeed && !isLocked && handleMealToggle(meal, endDate)}
+                                                                        style={{ 
+                                                                            cursor: (isPaused || showNoNeed || isLocked) ? 'not-allowed' : 'pointer',
+                                                                            opacity: (isPaused || showNoNeed) ? 0.7 : 1
+                                                                        }}
                                                                     >
                                                                         <div className="card-body text-center p-3">
-                                                                            <i className={`bi bi-${meal === 'breakfast' ? 'cup-hot' : meal === 'lunch' ? 'bowl' : meal === 'snacks' ? 'cookie' : 'moon'} ${isSelected ? 'text-success' : 'text-danger'} mb-2`} style={{ fontSize: '2rem' }}></i>
-                                                                            <h6 className={`card-title text-capitalize ${isSelected ? 'text-success' : 'text-danger'}`}>
+                                                                            <i className={`bi bi-${meal === 'breakfast' ? 'cup-hot' : meal === 'lunch' ? 'bowl' : meal === 'snacks' ? 'cookie' : 'moon'} ${
+                                                                                isPaused ? 'text-danger' : 
+                                                                                showNoNeed ? 'text-danger' :
+                                                                                isSelected ? 'text-success' : 
+                                                                                'text-secondary'
+                                                                            } mb-2`} style={{ fontSize: '2rem' }}></i>
+                                                                            <h6 className={`card-title text-capitalize ${
+                                                                                isPaused ? 'text-danger' : 
+                                                                                showNoNeed ? 'text-danger' :
+                                                                                isSelected ? 'text-success' : 
+                                                                                'text-secondary'
+                                                                            }`}>
                                                                                 {meal}
                                                                             </h6>
                                                                             <p className="card-text small text-muted mb-2">
                                                                                 {mealTimings[meal].start}
                                                                             </p>
-                                                                            {isSelected && (
-                                                                                <span className="badge bg-success">
-                                                                                    <i className="bi bi-check-circle me-1"></i>
-                                                                                    WILL HAVE
+                                                                            {isPaused ? (
+                                                                                <div>
+                                                                                    <span className="badge bg-danger mb-2">
+                                                                                        <i className="bi bi-x-circle me-1"></i>
+                                                                                        PAUSED
+                                                                                    </span>
+                                                                                    {canEdit && (
+                                                                                        <button
+                                                                                            className="btn btn-sm btn-outline-danger d-block mx-auto mt-2"
+                                                                                            onClick={(e) => {
+                                                                                                e.stopPropagation();
+                                                                                                handleEditPausedMeal(meal, endDate);
+                                                                                            }}
+                                                                                            style={{ fontSize: '0.75rem' }}
+                                                                                        >
+                                                                                            <i className="bi bi-pencil me-1"></i>
+                                                                                            Edit
+                                                                                        </button>
+                                                                                    )}
+                                                                                    {!canEdit && (
+                                                                                        <small className="text-danger d-block mt-2" style={{ fontSize: '0.7rem' }}>
+                                                                                            Cannot edit (less than 5hrs)
+                                                                                        </small>
+                                                                                    )}
+                                                                                </div>
+                                                                            ) : showNoNeed ? (
+                                                                                <span className="badge bg-danger">
+                                                                                    <i className="bi bi-x-circle me-1"></i>
+                                                                                    NO NEED
                                                                                 </span>
-                                                                            )}
+                                                                            ) : isSelected ? (
+                                                                                <div>
+                                                                                    <span className="badge bg-success">
+                                                                                        <i className="bi bi-check-circle me-1"></i>
+                                                                                        WILL HAVE
+                                                                                    </span>
+                                                                                    {isLocked && (
+                                                                                        <div className="mt-2">
+                                                                                            <small className="text-success" style={{ fontSize: '0.7rem' }}>
+                                                                                                <i className="bi bi-lock-fill me-1"></i>
+                                                                                                Auto-selected
+                                                                                            </small>
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
+                                                                            ) : null}
                                                                         </div>
                                                                     </div>
                                                                 </div>
@@ -675,15 +1066,136 @@ const FoodPauseManagerEnhanced = ({ outpassData = null }) => {
                                                 </>
                                             )}
 
-                                            {/* Weekend option - no meal selection needed */}
+                                            {/* Weekend option - meal selection for Monday */}
                                             {pauseType === 'weekend' && (
-                                                <div className="alert alert-success mb-4">
-                                                    <h6 className="alert-heading">
-                                                        <i className="bi bi-check-circle me-2"></i>
-                                                        All Weekend Meals Will Be Paused
-                                                    </h6>
-                                                    <p className="mb-0">From {formatDate(startDate)} to {formatDate(endDate)}, all meals (breakfast, lunch, snacks, dinner) will be automatically paused.</p>
-                                                </div>
+                                                <>
+                                                    <div className="alert alert-info mb-3">
+                                                        <h6 className="alert-heading">
+                                                            <i className="bi bi-info-circle me-2"></i>
+                                                            How it works:
+                                                        </h6>
+                                                        <p className="mb-2"><strong>From {formatDate(startDate)} (Friday) to {(() => {
+                                                            const mondayDate = new Date(endDate);
+                                                            const sundayDate = new Date(mondayDate);
+                                                            sundayDate.setDate(mondayDate.getDate() - 1);
+                                                            return formatDate(sundayDate.toISOString().split('T')[0]);
+                                                        })()} (Sunday):</strong> All meals will be paused</p>
+                                                        <p className="mb-0"><strong>Return Day - {formatDate(endDate)} (Monday):</strong> Select meals you want below</p>
+                                                    </div>
+
+                                                    <div className="card border-3 border-success mb-4">
+                                                        <div className="card-header bg-success bg-opacity-10 border-success border-bottom">
+                                                            <h5 className="mb-0">
+                                                                <i className="bi bi-calendar-check me-2"></i>
+                                                                Select Your First Meal on Monday ({formatDate(endDate)})
+                                                            </h5>
+                                                        </div>
+                                                        <div className="card-body">
+                                                            <div className="alert alert-info mb-4">
+                                                                <i className="bi bi-lightbulb-fill me-2"></i>
+                                                                <strong>Smart Selection:</strong> Select your first meal when you return on Monday. All meals after it will be automatically included and locked.
+                                                                <ul className="mb-0 mt-2">
+                                                                    <li><strong>Example:</strong> Select Breakfast → You'll have all 4 meals</li>
+                                                                    <li><strong>Example:</strong> Select Lunch → You'll have Lunch, Snacks & Dinner (Breakfast marked as "NO NEED")</li>
+                                                                </ul>
+                                                            </div>
+                                                            <div className="row g-3">
+                                                                {['breakfast', 'lunch', 'snacks', 'dinner'].map(meal => {
+                                                                    const isSelected = weekendMeals.includes(meal);
+                                                                    const isPaused = isMealAlreadyPaused(meal, endDate);
+                                                                    const showNoNeed = shouldShowNoNeedWeekend(meal);
+                                                                    const isLocked = isAutoSelectedWeekend(meal);
+                                                                    const canEdit = isPaused && canEditPausedMeal(meal, endDate);
+                                                                    
+                                                                    return (
+                                                                        <div key={`weekend-${meal}`} className="col-md-6">
+                                                                            <div 
+                                                                                className={`card h-100 meal-card ${
+                                                                                    isPaused ? 'border-danger bg-danger bg-opacity-10' : 
+                                                                                    showNoNeed ? 'border-danger bg-danger bg-opacity-10' :
+                                                                                    isSelected ? 'border-success bg-success bg-opacity-10' : 
+                                                                                    'border-secondary'
+                                                                                }`}
+                                                                                onClick={() => !isPaused && !showNoNeed && !isLocked && handleWeekendMealToggle(meal)}
+                                                                                style={{ 
+                                                                                    cursor: (isPaused || showNoNeed || isLocked) ? 'not-allowed' : 'pointer',
+                                                                                    transition: 'all 0.2s',
+                                                                                    opacity: (isPaused || showNoNeed) ? 0.7 : 1
+                                                                                }}
+                                                                            >
+                                                                                <div className="card-body text-center p-3">
+                                                                                    <i className={`bi bi-${meal === 'breakfast' ? 'cup-hot' : meal === 'lunch' ? 'bowl' : meal === 'snacks' ? 'cookie' : 'moon'} ${
+                                                                                        isPaused ? 'text-danger' : 
+                                                                                        showNoNeed ? 'text-danger' :
+                                                                                        isSelected ? 'text-success' : 
+                                                                                        'text-secondary'
+                                                                                    } mb-2`} style={{ fontSize: '2rem' }}></i>
+                                                                                    <h6 className={`card-title text-capitalize ${
+                                                                                        isPaused ? 'text-danger' : 
+                                                                                        showNoNeed ? 'text-danger' :
+                                                                                        isSelected ? 'text-success' : 
+                                                                                        'text-secondary'
+                                                                                    }`}>
+                                                                                        {meal}
+                                                                                    </h6>
+                                                                                    <p className="card-text small text-muted mb-2">
+                                                                                        {mealTimings[meal].start}
+                                                                                    </p>
+                                                                                    {isPaused ? (
+                                                                                        <div>
+                                                                                            <span className="badge bg-danger mb-2">
+                                                                                                <i className="bi bi-x-circle me-1"></i>
+                                                                                                PAUSED
+                                                                                            </span>
+                                                                                            {canEdit && (
+                                                                                                <button
+                                                                                                    className="btn btn-sm btn-outline-danger d-block mx-auto mt-2"
+                                                                                                    onClick={(e) => {
+                                                                                                        e.stopPropagation();
+                                                                                                        handleEditPausedMeal(meal, endDate);
+                                                                                                    }}
+                                                                                                    style={{ fontSize: '0.75rem' }}
+                                                                                                >
+                                                                                                    <i className="bi bi-pencil me-1"></i>
+                                                                                                    Edit
+                                                                                                </button>
+                                                                                            )}
+                                                                                            {!canEdit && (
+                                                                                                <small className="text-danger d-block mt-2" style={{ fontSize: '0.7rem' }}>
+                                                                                                    Cannot edit (less than 5hrs)
+                                                                                                </small>
+                                                                                            )}
+                                                                                        </div>
+                                                                                    ) : showNoNeed ? (
+                                                                                        <span className="badge bg-danger">
+                                                                                            <i className="bi bi-x-circle me-1"></i>
+                                                                                            NO NEED
+                                                                                        </span>
+                                                                                    ) : isSelected ? (
+                                                                                        <div>
+                                                                                            <span className="badge bg-success">
+                                                                                                <i className="bi bi-check-circle me-1"></i>
+                                                                                                WILL HAVE
+                                                                                            </span>
+                                                                                            {isLocked && (
+                                                                                                <div className="mt-2">
+                                                                                                    <small className="text-success" style={{ fontSize: '0.7rem' }}>
+                                                                                                        <i className="bi bi-lock-fill me-1"></i>
+                                                                                                        Auto-selected
+                                                                                                    </small>
+                                                                                                </div>
+                                                                                            )}
+                                                                                        </div>
+                                                                                    ) : null}
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </>
                                             )}
 
                                             {/* Last Day Meal Selection for Custom Date Range */}
@@ -706,39 +1218,102 @@ const FoodPauseManagerEnhanced = ({ outpassData = null }) => {
                                                         </h5>
                                                     </div>
                                                     <div className="card-body">
-                                                        <p className="text-muted mb-4">
-                                                            Choose which meals you'll have on <strong>{formatDate(endDate)}</strong> when you return. 
-                                                            Meals not selected will be paused.
-                                                        </p>
+                                                        <div className="alert alert-info mb-4">
+                                                            <i className="bi bi-lightbulb-fill me-2"></i>
+                                                            <strong>Smart Selection:</strong> Select your first meal when you return on <strong>{formatDate(endDate)}</strong>. All meals after it will be automatically included and locked. You can only change your first meal to adjust your plan.
+                                                            <ul className="mb-0 mt-2">
+                                                                <li><strong>Example:</strong> Select Breakfast → You'll have all 4 meals</li>
+                                                                <li><strong>Example:</strong> Select Lunch → You'll have Lunch, Snacks & Dinner (Breakfast marked as "NO NEED")</li>
+                                                            </ul>
+                                                        </div>
                                                         <div className="row g-3">
                                                             {['breakfast', 'lunch', 'snacks', 'dinner'].map(meal => {
                                                                 const isSelected = lastDayMeals.includes(meal);
+                                                                const isPaused = isMealAlreadyPaused(meal, endDate);
+                                                                const showNoNeed = shouldShowNoNeedLastDay(meal);
+                                                                const isLocked = isAutoSelectedLastDay(meal);
+                                                                const canEdit = isPaused && canEditPausedMeal(meal, endDate);
                                                                 
                                                                 return (
                                                                     <div key={`lastday-${meal}`} className="col-md-6">
                                                                         <div 
-                                                                            className={`card h-100 meal-card ${isSelected ? 'border-success bg-success bg-opacity-10' : 'border-secondary'}`}
-                                                                            onClick={() => setLastDayMeals(prev => 
-                                                                                prev.includes(meal) 
-                                                                                    ? prev.filter(m => m !== meal)
-                                                                                    : [...prev, meal]
-                                                                            )}
-                                                                            style={{ cursor: 'pointer', transition: 'all 0.2s' }}
+                                                                            className={`card h-100 meal-card ${
+                                                                                isPaused ? 'border-danger bg-danger bg-opacity-10' : 
+                                                                                showNoNeed ? 'border-danger bg-danger bg-opacity-10' :
+                                                                                isSelected ? 'border-success bg-success bg-opacity-10' : 
+                                                                                'border-secondary'
+                                                                            }`}
+                                                                            onClick={() => !isPaused && !showNoNeed && !isLocked && handleLastDayMealToggle(meal)}
+                                                                            style={{ 
+                                                                                cursor: (isPaused || showNoNeed || isLocked) ? 'not-allowed' : 'pointer',
+                                                                                transition: 'all 0.2s',
+                                                                                opacity: (isPaused || showNoNeed) ? 0.7 : 1
+                                                                            }}
                                                                         >
                                                                             <div className="card-body text-center p-3">
-                                                                                <i className={`bi bi-${meal === 'breakfast' ? 'cup-hot' : meal === 'lunch' ? 'bowl' : meal === 'snacks' ? 'cookie' : 'moon'} ${isSelected ? 'text-success' : 'text-secondary'} mb-2`} style={{ fontSize: '2rem' }}></i>
-                                                                                <h6 className={`card-title text-capitalize ${isSelected ? 'text-success' : 'text-secondary'}`}>
+                                                                                <i className={`bi bi-${meal === 'breakfast' ? 'cup-hot' : meal === 'lunch' ? 'bowl' : meal === 'snacks' ? 'cookie' : 'moon'} ${
+                                                                                    isPaused ? 'text-danger' : 
+                                                                                    showNoNeed ? 'text-danger' :
+                                                                                    isSelected ? 'text-success' : 
+                                                                                    'text-secondary'
+                                                                                } mb-2`} style={{ fontSize: '2rem' }}></i>
+                                                                                <h6 className={`card-title text-capitalize ${
+                                                                                    isPaused ? 'text-danger' : 
+                                                                                    showNoNeed ? 'text-danger' :
+                                                                                    isSelected ? 'text-success' : 
+                                                                                    'text-secondary'
+                                                                                }`}>
                                                                                     {meal}
                                                                                 </h6>
                                                                                 <p className="card-text small text-muted mb-2">
                                                                                     {mealTimings[meal].start}
                                                                                 </p>
-                                                                                {isSelected && (
-                                                                                    <span className="badge bg-success">
-                                                                                        <i className="bi bi-check-circle me-1"></i>
-                                                                                        WILL HAVE
+                                                                                {isPaused ? (
+                                                                                    <div>
+                                                                                        <span className="badge bg-danger mb-2">
+                                                                                            <i className="bi bi-x-circle me-1"></i>
+                                                                                            PAUSED
+                                                                                        </span>
+                                                                                        {canEdit && (
+                                                                                            <button
+                                                                                                className="btn btn-sm btn-outline-danger d-block mx-auto mt-2"
+                                                                                                onClick={(e) => {
+                                                                                                    e.stopPropagation();
+                                                                                                    handleEditPausedMeal(meal, endDate);
+                                                                                                }}
+                                                                                                style={{ fontSize: '0.75rem' }}
+                                                                                            >
+                                                                                                <i className="bi bi-pencil me-1"></i>
+                                                                                                Edit
+                                                                                            </button>
+                                                                                        )}
+                                                                                        {!canEdit && (
+                                                                                            <small className="text-danger d-block mt-2" style={{ fontSize: '0.7rem' }}>
+                                                                                                Cannot edit (less than 5hrs)
+                                                                                            </small>
+                                                                                        )}
+                                                                                    </div>
+                                                                                ) : showNoNeed ? (
+                                                                                    <span className="badge bg-danger">
+                                                                                        <i className="bi bi-x-circle me-1"></i>
+                                                                                        NO NEED
                                                                                     </span>
-                                                                                )}
+                                                                                ) : isSelected ? (
+                                                                                    <div>
+                                                                                        <span className="badge bg-success">
+                                                                                            <i className="bi bi-check-circle me-1"></i>
+                                                                                            WILL HAVE
+                                                                                        </span>
+                                                                                        {isLocked && (
+                                                                                            <div className="mt-2">
+                                                                                                <small className="text-success" style={{ fontSize: '0.7rem' }}>
+                                                                                                    <i className="bi bi-lock-fill me-1"></i>
+                                                                                                    Auto-selected
+                                                                                                </small>
+                                                                                            </div>
+                                                                                        )}
+                                                                                    </div>
+                                                                                ) : null}
                                                                             </div>
                                                                         </div>
                                                                     </div>
@@ -796,27 +1371,23 @@ const FoodPauseManagerEnhanced = ({ outpassData = null }) => {
                                                 <button
                                                     className="btn me-4"
                                                     onClick={handleSubmit}
-                                                    disabled={submitting || (pauseType !== 'weekend' && selectedMeals.length === 0) || (pauseType === 'custom' && startDate !== endDate && lastDayMeals.length === 0)}
+                                                    disabled={submitting}
                                                     style={{
-                                                        background: ((pauseType !== 'weekend' && selectedMeals.length === 0) || (pauseType === 'custom' && startDate !== endDate && lastDayMeals.length === 0))
-                                                            ? 'linear-gradient(135deg, #9ca3af 0%, #6b7280 100%)' 
-                                                            : 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+                                                        background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
                                                         color: 'white',
                                                         border: 'none',
                                                         borderRadius: '20px',
                                                         fontWeight: '800',
                                                         fontSize: '1.3rem',
                                                         padding: '15px 40px',
-                                                        boxShadow: ((pauseType !== 'weekend' && selectedMeals.length === 0) || (pauseType === 'custom' && startDate !== endDate && lastDayMeals.length === 0))
-                                                            ? '0 10px 25px rgba(156, 163, 175, 0.4)' 
-                                                            : '0 10px 25px rgba(139, 92, 246, 0.5)',
+                                                        boxShadow: '0 10px 25px rgba(139, 92, 246, 0.5)',
                                                         transition: 'all 0.4s ease',
                                                         textTransform: 'uppercase',
                                                         letterSpacing: '1px',
-                                                        cursor: ((pauseType !== 'weekend' && selectedMeals.length === 0) || (pauseType === 'custom' && startDate !== endDate && lastDayMeals.length === 0)) ? 'not-allowed' : 'pointer'
+                                                        cursor: 'pointer'
                                                     }}
                                                     onMouseEnter={(e) => {
-                                                        if (!e.target.disabled && (pauseType === 'weekend' || selectedMeals.length > 0) && !(pauseType === 'custom' && startDate !== endDate && lastDayMeals.length === 0)) {
+                                                        if (!e.target.disabled) {
                                                             e.target.style.transform = 'translateY(-5px) scale(1.08)';
                                                             e.target.style.boxShadow = '0 15px 35px rgba(139, 92, 246, 0.7)';
                                                             e.target.style.background = 'linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)';
@@ -825,12 +1396,8 @@ const FoodPauseManagerEnhanced = ({ outpassData = null }) => {
                                                     onMouseLeave={(e) => {
                                                         if (!e.target.disabled) {
                                                             e.target.style.transform = 'translateY(0) scale(1)';
-                                                            e.target.style.boxShadow = ((pauseType !== 'weekend' && selectedMeals.length === 0) || (pauseType === 'custom' && startDate !== endDate && lastDayMeals.length === 0))
-                                                                ? '0 10px 25px rgba(156, 163, 175, 0.4)' 
-                                                                : '0 10px 25px rgba(139, 92, 246, 0.5)';
-                                                            e.target.style.background = ((pauseType !== 'weekend' && selectedMeals.length === 0) || (pauseType === 'custom' && startDate !== endDate && lastDayMeals.length === 0))
-                                                                ? 'linear-gradient(135deg, #9ca3af 0%, #6b7280 100%)' 
-                                                                : 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)';
+                                                            e.target.style.boxShadow = '0 10px 25px rgba(139, 92, 246, 0.5)';
+                                                            e.target.style.background = 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)';
                                                         }
                                                     }}
                                                 >
@@ -842,7 +1409,7 @@ const FoodPauseManagerEnhanced = ({ outpassData = null }) => {
                                                     ) : (
                                                         <>
                                                             <i className="bi bi-pause-fill me-3" style={{ fontSize: '1.4rem' }}></i>
-                                                            PAUSE MEALS
+                                                         SAVE 
                                                         </>
                                                     )}
                                                 </button>

@@ -167,7 +167,7 @@ const Students = () => {
     return (
         <div>
             <div className="d-flex justify-content-between align-items-center mb-4">
-                <h2>Students Management</h2>
+                <h2>Student Management</h2>
                 <div className="d-flex gap-2">
                     <button
                         className="btn btn-primary"
@@ -342,6 +342,13 @@ const Students = () => {
                             <button
                                 className={`nav-link ${activeTab === 'active' ? 'active' : ''}`}
                                 onClick={() => setActiveTab('active')}
+                                style={{ 
+                                    backgroundColor: activeTab === 'active' ? '#198754' : '#e9ecef',
+                                    color: activeTab === 'active' ? 'white' : '#495057',
+                                    fontWeight: activeTab === 'active' ? '600' : '500',
+                                    border: 'none',
+                                    borderRadius: '6px 6px 0 0'
+                                }}
                             >
                                 Active Students
                             </button>
@@ -350,6 +357,13 @@ const Students = () => {
                             <button
                                 className={`nav-link ${activeTab === 'inactive' ? 'active' : ''}`}
                                 onClick={() => setActiveTab('inactive')}
+                                style={{ 
+                                    backgroundColor: activeTab === 'inactive' ? '#dc3545' : '#e9ecef',
+                                    color: activeTab === 'inactive' ? 'white' : '#495057',
+                                    fontWeight: activeTab === 'inactive' ? '600' : '500',
+                                    border: 'none',
+                                    borderRadius: '6px 6px 0 0'
+                                }}
                             >
                                 Inactive Students
                             </button>
