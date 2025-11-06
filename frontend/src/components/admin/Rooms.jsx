@@ -387,9 +387,10 @@ const Rooms = () => {
                     </button>
 
                     <button
-                        className="btn btn-warning"
+                        className="btn btn-warning text-nowrap"
                         onClick={handleAllocateRooms}
                         disabled={allocatingRooms}
+                        style={{ whiteSpace: 'nowrap' }}
                     >
                         {allocatingRooms ? (
                             <>
@@ -400,9 +401,11 @@ const Rooms = () => {
                     </button>
 
                     <button
-                        className="btn btn-primary"
+                        className="btn btn-primary text-nowrap"
                         onClick={() => setShowForm(!showForm)}
+                        style={{ whiteSpace: 'nowrap' }}
                     >
+                        <i className={`bi bi-${showForm ? 'x-circle' : 'plus-circle'} me-2`}></i>
                         {showForm ? 'Cancel' : 'Add New Room'}
                     </button>
                 </div>
@@ -541,12 +544,20 @@ const Rooms = () => {
                 <div className="col-md-8">
                     <div className="card mb-4">
                         <div className="card-header bg-light">
-                            <div className="d-flex justify-content-between align-items-center">
-                                <ul className="nav nav-tabs card-header-tabs">
+                            <div className="d-flex flex-column flex-lg-row justify-content-between align-items-start align-items-lg-center gap-3">
+                                <ul className="nav nav-tabs card-header-tabs mb-0 flex-nowrap" style={{ border: 'none' }}>
                                     <li className="nav-item">
                                         <button
                                             className={`nav-link ${activeTab === 'all' ? 'active' : ''}`}
                                             onClick={() => setActiveTab('all')}
+                                            style={{ 
+                                                whiteSpace: 'nowrap',
+                                                backgroundColor: activeTab === 'all' ? '#0d6efd' : '#e9ecef',
+                                                color: activeTab === 'all' ? 'white' : '#495057',
+                                                fontWeight: activeTab === 'all' ? '600' : '500',
+                                                border: 'none',
+                                                borderRadius: '6px 6px 0 0'
+                                            }}
                                         >
                                             All Rooms
                                         </button>
@@ -555,6 +566,14 @@ const Rooms = () => {
                                         <button
                                             className={`nav-link ${activeTab === 'vacant' ? 'active' : ''}`}
                                             onClick={() => setActiveTab('vacant')}
+                                            style={{ 
+                                                whiteSpace: 'nowrap',
+                                                backgroundColor: activeTab === 'vacant' ? '#198754' : '#e9ecef',
+                                                color: activeTab === 'vacant' ? 'white' : '#495057',
+                                                fontWeight: activeTab === 'vacant' ? '600' : '500',
+                                                border: 'none',
+                                                borderRadius: '6px 6px 0 0'
+                                            }}
                                         >
                                             Vacant Rooms
                                         </button>
@@ -563,17 +582,26 @@ const Rooms = () => {
                                         <button
                                             className={`nav-link ${activeTab === 'occupied' ? 'active' : ''}`}
                                             onClick={() => setActiveTab('occupied')}
+                                            style={{ 
+                                                whiteSpace: 'nowrap',
+                                                backgroundColor: activeTab === 'occupied' ? '#dc3545' : '#e9ecef',
+                                                color: activeTab === 'occupied' ? 'white' : '#495057',
+                                                fontWeight: activeTab === 'occupied' ? '600' : '500',
+                                                border: 'none',
+                                                borderRadius: '6px 6px 0 0'
+                                            }}
                                         >
                                             Fully Occupied
                                         </button>
                                     </li>
                                 </ul>
-                                <div className="d-flex align-items-center">
-                                    <div className="me-2">
+                                <div className="d-flex flex-column flex-sm-row align-items-stretch align-items-sm-center gap-2" style={{ minWidth: 'fit-content' }}>
+                                    <div>
                                         <select
                                             className="form-select"
                                             value={selectedFloor}
                                             onChange={(e) => setSelectedFloor(e.target.value)}
+                                            style={{ minWidth: '120px' }}
                                         >
                                             <option value="all">All Floors</option>
                                             {[...Array(12)].map((_, i) => (
@@ -587,9 +615,10 @@ const Rooms = () => {
                                         <input
                                             type="text"
                                             className="form-control"
-                                            placeholder="Search by room number..."
+                                            placeholder="Search rooms..."
                                             value={searchTerm}
                                             onChange={(e) => setSearchTerm(e.target.value)}
+                                            style={{ minWidth: '150px' }}
                                         />
                                     </div>
                                 </div>
