@@ -156,10 +156,10 @@ outpassApp.get('/current-passes/:rollNumber', verifyStudent, expressAsyncHandler
     try {
         const { rollNumber } = req.params;
 
-        // Get approved outpasses that are not yet returned
+        // Get approved, late, and out outpasses that are not yet returned
         const currentPasses = await Outpass.find({ 
             rollNumber,
-            status: { $in: ['approved', 'out'] }
+            status: { $in: ['approved', 'late', 'out'] }
         }).sort({ approvedAt: -1 });
 
         res.status(200).json({ currentPasses });
@@ -198,9 +198,10 @@ outpassApp.post('/scan/out', expressAsyncHandler(async (req, res) => {
             return res.status(404).json({ message: "Invalid QR code" });
         }
 
-        if (outpass.status !== 'approved') {
+        // Allow both 'approved' and 'late' status to scan out
+        if (outpass.status !== 'approved' && outpass.status !== 'late') {
             return res.status(400).json({ 
-                message: "Cannot scan out. Current status: ${outpass.status}" 
+                message: `Cannot scan out. Current status: ${outpass.status}` 
             });
         }
 
@@ -209,13 +210,17 @@ outpassApp.post('/scan/out', expressAsyncHandler(async (req, res) => {
         outpass.actualOutTime = new Date();
         await outpass.save();
 
+        // Include late indicator in response
+        const lateMessage = outpass.isLate ? " (Late Entry)" : "";
+        
         res.status(200).json({ 
-            message: "Student checked out successfully", 
+            message: `Student checked out successfully${lateMessage}`, 
             outpass,
             student: {
                 name: outpass.name,
                 rollNumber: outpass.rollNumber,
-                outTime: outpass.actualOutTime
+                outTime: outpass.actualOutTime,
+                isLate: outpass.isLate
             }
         });
     } catch (error) {
@@ -239,7 +244,20 @@ outpassApp.post('/scan/in', expressAsyncHandler(async (req, res) => {
 
         if (outpass.status !== 'out') {
             return res.status(400).json({ 
-                message: "Cannot scan in. Current status: ${outpass.status}" 
+                message: `Cannot scan in. Current status: ${outpass.status}` 
+            });
+        }
+
+        // Check if QR code has expired (past scheduled in-time) and not regenerated as late
+        const now = new Date();
+        const scheduledInTime = new Date(outpass.inTime);
+        
+        if (now > scheduledInTime && !outpass.isLate) {
+            return res.status(400).json({ 
+                message: "QR code expired. Return time has passed. Student must regenerate QR code as Late.",
+                scheduledInTime: outpass.inTime,
+                currentTime: now,
+                requiresRegeneration: true
             });
         }
 
@@ -291,13 +309,17 @@ outpassApp.post('/scan/in', expressAsyncHandler(async (req, res) => {
             // Don't fail the scan-in if food resume fails
         }
 
+        // Include late indicator in response
+        const lateMessage = outpass.isLate ? " (Late Return)" : "";
+        
         res.status(200).json({ 
-            message: "Student checked in successfully", 
+            message: `Student checked in successfully${lateMessage}`, 
             outpass,
             student: {
                 name: outpass.name,
                 rollNumber: outpass.rollNumber,
-                inTime: outpass.actualInTime
+                inTime: outpass.actualInTime,
+                isLate: outpass.isLate
             }
         });
     } catch (error) {
@@ -335,9 +357,25 @@ outpassApp.post('/verify-qr', expressAsyncHandler(async (req, res) => {
             return res.status(404).json({ message: "Invalid QR code" });
         }
 
+        const now = new Date();
+        const scheduledInTime = new Date(outpass.inTime);
+        
+        // Check if QR code has expired based on status and time
+        let isExpired = false;
+        let expirationReason = null;
+        
+        // For 'out' status: Check if current time is past scheduled in-time
+        if (outpass.status === 'out' && !outpass.isLate && now > scheduledInTime) {
+            isExpired = true;
+            expirationReason = 'QR code expired. Return time has passed. Please regenerate as Late.';
+        }
+
         res.status(200).json({ 
-            valid: true,
+            valid: !isExpired,
+            expired: isExpired,
+            expirationReason: expirationReason,
             outpass: {
+                _id: outpass._id,
                 name: outpass.name,
                 rollNumber: outpass.rollNumber,
                 status: outpass.status,
@@ -346,7 +384,9 @@ outpassApp.post('/verify-qr', expressAsyncHandler(async (req, res) => {
                 reason: outpass.reason,
                 type: outpass.type,
                 actualOutTime: outpass.actualOutTime,
-                actualInTime: outpass.actualInTime
+                actualInTime: outpass.actualInTime,
+                isLate: outpass.isLate,
+                regeneratedAt: outpass.regeneratedAt
             }
         });
     } catch (error) {
@@ -358,7 +398,7 @@ outpassApp.post('/verify-qr', expressAsyncHandler(async (req, res) => {
 outpassApp.get('/active-passes', expressAsyncHandler(async (req, res) => {
     try {
         const activePasses = await Outpass.find({ 
-            status: { $in: ['approved', 'out'] }
+            status: { $in: ['approved', 'late', 'out'] }
         }).sort({ approvedAt: -1 });
 
         res.status(200).json({ activePasses });
@@ -394,6 +434,118 @@ outpassApp.get('/security-stats', expressAsyncHandler(async (req, res) => {
             recentActivity
         });
     } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+}));
+
+// Regenerate QR code for expired pass (mark as late)
+outpassApp.post('/regenerate-qr/:id', verifyStudent, expressAsyncHandler(async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        const outpass = await Outpass.findById(id);
+        if (!outpass) {
+            return res.status(404).json({ message: "Outpass not found" });
+        }
+
+        const now = new Date();
+        const scheduledOutTime = new Date(outpass.outTime);
+        const scheduledInTime = new Date(outpass.inTime);
+        
+        // Handle 'approved' status - expired before check-out
+        if (outpass.status === 'approved') {
+            // Allow regeneration if current time is past the scheduled out time
+            // or within a grace period (e.g., 30 minutes before)
+            const gracePeriodMinutes = 30;
+            const gracePeriodTime = new Date(scheduledOutTime.getTime() - (gracePeriodMinutes * 60 * 1000));
+            
+            if (now < gracePeriodTime) {
+                return res.status(400).json({ 
+                    message: "QR code is still valid. Can only regenerate after scheduled time",
+                    scheduledOutTime: outpass.outTime
+                });
+            }
+
+            // Generate new QR code and mark as late
+            const newQRCodeData = generateQRCode(outpass._id, outpass.rollNumber);
+            
+            outpass.qrCodeData = newQRCodeData;
+            outpass.status = 'late';
+            outpass.isLate = true;
+            outpass.regeneratedAt = new Date();
+
+            await outpass.save();
+
+            return res.status(200).json({
+                message: 'QR code regenerated successfully. Pass marked as Late for check-out.',
+                outpass: {
+                    _id: outpass._id,
+                    name: outpass.name,
+                    rollNumber: outpass.rollNumber,
+                    status: outpass.status,
+                    qrCodeData: outpass.qrCodeData,
+                    outTime: outpass.outTime,
+                    inTime: outpass.inTime,
+                    type: outpass.type,
+                    reason: outpass.reason,
+                    isLate: outpass.isLate,
+                    regeneratedAt: outpass.regeneratedAt,
+                    parentMobileNumber: outpass.parentMobileNumber,
+                    studentMobileNumber: outpass.studentMobileNumber,
+                    actualOutTime: outpass.actualOutTime
+                }
+            });
+        }
+        
+        // Handle 'out' status - expired after student left, trying to check-in late
+        if (outpass.status === 'out') {
+            // Check if current time is past scheduled in-time
+            if (now <= scheduledInTime) {
+                return res.status(400).json({ 
+                    message: "QR code is still valid for check-in. Return time has not passed yet.",
+                    scheduledInTime: outpass.inTime
+                });
+            }
+
+            // Generate new QR code for late check-in
+            const newQRCodeData = generateQRCode(outpass._id, outpass.rollNumber);
+            
+            outpass.qrCodeData = newQRCodeData;
+            outpass.isLate = true;
+            outpass.regeneratedAt = new Date();
+            // Keep status as 'out' but mark as late
+
+            await outpass.save();
+
+            return res.status(200).json({
+                message: 'QR code regenerated successfully. Marked as Late for check-in.',
+                outpass: {
+                    _id: outpass._id,
+                    name: outpass.name,
+                    rollNumber: outpass.rollNumber,
+                    status: outpass.status,
+                    qrCodeData: outpass.qrCodeData,
+                    outTime: outpass.outTime,
+                    inTime: outpass.inTime,
+                    type: outpass.type,
+                    reason: outpass.reason,
+                    isLate: outpass.isLate,
+                    regeneratedAt: outpass.regeneratedAt,
+                    parentMobileNumber: outpass.parentMobileNumber,
+                    studentMobileNumber: outpass.studentMobileNumber,
+                    actualOutTime: outpass.actualOutTime
+                }
+            });
+        }
+
+        // Invalid status for regeneration
+        return res.status(400).json({ 
+            message: `Cannot regenerate QR code for ${outpass.status} passes`,
+            currentStatus: outpass.status
+        });
+
+    } catch (error) {
+        console.error('Error regenerating QR code:', error);
         res.status(500).json({ error: error.message });
     }
 }));

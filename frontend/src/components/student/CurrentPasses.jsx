@@ -11,6 +11,7 @@ const CurrentPasses = () => {
     const [currentPasses, setCurrentPasses] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [regenerating, setRegenerating] = useState(null);
 
     useEffect(() => {
         const fetchCurrentPasses = async () => {
@@ -33,9 +34,9 @@ const CurrentPasses = () => {
                     `${import.meta.env.VITE_SERVER_URL}/student-api/all-outpasses/${user.rollNumber}`
                 );
                 
-                // Filter for approved and out status only
+                // Filter for approved, late, and out status only
                 const activePasses = response.data.studentOutpasses?.filter(
-                    pass => pass.status === 'approved' || pass.status === 'out'
+                    pass => pass.status === 'approved' || pass.status === 'late' || pass.status === 'out'
                 ) || [];
                 
                 setCurrentPasses(activePasses);
@@ -57,6 +58,55 @@ const CurrentPasses = () => {
             console.error('Error generating PDF:', error);
             alert('Failed to generate PDF. Please try again.');
         }
+    };
+
+    const handleRegenerateQR = async (passId) => {
+        if (!confirm('Regenerate QR code? This will mark your pass as "Late".')) {
+            return;
+        }
+
+        setRegenerating(passId);
+        try {
+            const response = await axios.post(
+                `${import.meta.env.VITE_SERVER_URL}/outpass-api/regenerate-qr/${passId}`
+            );
+
+            alert(response.data.message);
+
+            // Refresh the passes list
+            const updatedResponse = await axios.get(
+                `${import.meta.env.VITE_SERVER_URL}/student-api/all-outpasses/${user.rollNumber}`
+            );
+            
+            const activePasses = updatedResponse.data.studentOutpasses?.filter(
+                pass => pass.status === 'approved' || pass.status === 'late' || pass.status === 'out'
+            ) || [];
+            
+            setCurrentPasses(activePasses);
+        } catch (error) {
+            console.error('Error regenerating QR code:', error);
+            alert(error.response?.data?.message || 'Failed to regenerate QR code. Please try again.');
+        } finally {
+            setRegenerating(null);
+        }
+    };
+
+    const isPassExpired = (pass) => {
+        const now = new Date();
+        const scheduledOutTime = new Date(pass.outTime);
+        const scheduledInTime = new Date(pass.inTime);
+        
+        // For 'approved' status: expired if past scheduled out time
+        if (pass.status === 'approved' && now > scheduledOutTime) {
+            return true;
+        }
+        
+        // For 'out' status: expired if past scheduled in time and not already marked as late
+        if (pass.status === 'out' && now > scheduledInTime && !pass.isLate) {
+            return true;
+        }
+        
+        return false;
     };
 
     if (loading) {
@@ -116,9 +166,13 @@ const CurrentPasses = () => {
                                         </div>
                                         <span style={{
                                             ...styles.statusBadge,
-                                            backgroundColor: pass.status === 'approved' ? '#4CAF50' : '#FF9800',
+                                            backgroundColor: 
+                                                pass.status === 'approved' ? '#4CAF50' : 
+                                                pass.status === 'late' ? '#f59e0b' : 
+                                                '#FF9800',
                                         }}>
-                                            {pass.status === 'approved' ? 'APPROVED' : 'OUT'}
+                                            {pass.status === 'approved' ? 'APPROVED' : 
+                                             pass.status === 'late' ? 'LATE' : 'OUT'}
                                         </span>
                                     </div>
 
@@ -180,28 +234,75 @@ const CurrentPasses = () => {
                                         </div>
                                     </div>
 
-                                    {/* Download Button */}
-                                    <button 
-                                        onClick={() => handleDownloadPDF(pass)}
-                                        style={styles.downloadButton}
-                                        onMouseEnter={(e) => {
-                                            e.currentTarget.style.backgroundColor = '#5a67d8';
-                                            e.currentTarget.style.transform = 'translateY(-2px)';
-                                        }}
-                                        onMouseLeave={(e) => {
-                                            e.currentTarget.style.backgroundColor = '#667eea';
-                                            e.currentTarget.style.transform = 'translateY(0)';
-                                        }}
-                                    >
-                                        <Download size={18} />
-                                        <span>Download Pass</span>
-                                    </button>
+                                    {/* Action Buttons */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                        {isPassExpired(pass) && (
+                                            <button 
+                                                onClick={() => handleRegenerateQR(pass._id)}
+                                                disabled={regenerating === pass._id}
+                                                style={{
+                                                    ...styles.regenerateButton,
+                                                    opacity: regenerating === pass._id ? 0.6 : 1,
+                                                    cursor: regenerating === pass._id ? 'not-allowed' : 'pointer'
+                                                }}
+                                                onMouseEnter={(e) => {
+                                                    if (regenerating !== pass._id) {
+                                                        e.currentTarget.style.backgroundColor = '#d97706';
+                                                        e.currentTarget.style.transform = 'translateY(-2px)';
+                                                    }
+                                                }}
+                                                onMouseLeave={(e) => {
+                                                    if (regenerating !== pass._id) {
+                                                        e.currentTarget.style.backgroundColor = '#f59e0b';
+                                                        e.currentTarget.style.transform = 'translateY(0)';
+                                                    }
+                                                }}
+                                            >
+                                                <Clock size={18} />
+                                                <span>
+                                                    {regenerating === pass._id 
+                                                        ? 'Regenerating...' 
+                                                        : pass.status === 'out' 
+                                                            ? 'Return Time Passed - Regenerate for Late Check-in'
+                                                            : 'QR Expired - Regenerate as Late'}
+                                                </span>
+                                            </button>
+                                        )}
+                                        
+                                        <button 
+                                            onClick={() => handleDownloadPDF(pass)}
+                                            style={styles.downloadButton}
+                                            onMouseEnter={(e) => {
+                                                e.currentTarget.style.backgroundColor = '#5a67d8';
+                                                e.currentTarget.style.transform = 'translateY(-2px)';
+                                            }}
+                                            onMouseLeave={(e) => {
+                                                e.currentTarget.style.backgroundColor = '#667eea';
+                                                e.currentTarget.style.transform = 'translateY(0)';
+                                            }}
+                                        >
+                                            <Download size={18} />
+                                            <span>Download Pass</span>
+                                        </button>
+                                    </div>
                                 </div>
 
                                 {/* Right Section - QR Code */}
                                 <div style={styles.rightSection}>
                                     {pass.qrCodeData && (
                                         <div style={styles.qrWrapper}>
+                                            {pass.isLate && (
+                                                <div style={styles.lateIndicator}>
+                                                    <Clock size={20} />
+                                                    <span>LATE ENTRY</span>
+                                                </div>
+                                            )}
+                                            {isPassExpired(pass) && (
+                                                <div style={styles.expiredIndicator}>
+                                                    <Clock size={20} />
+                                                    <span>QR EXPIRED</span>
+                                                </div>
+                                            )}
                                             <div style={styles.qrContainer}>
                                                 <QRCodeSVG 
                                                     value={pass.qrCodeData} 
@@ -210,7 +311,9 @@ const CurrentPasses = () => {
                                                     includeMargin={true}
                                                 />
                                             </div>
-                                            <p style={styles.qrText}>Show this QR code at the gate</p>
+                                            <p style={styles.qrText}>
+                                                {pass.isLate ? 'Late Entry Pass - Show at gate' : 'Show this QR code at the gate'}
+                                            </p>
                                         </div>
                                     )}
                                 </div>
@@ -386,7 +489,51 @@ const styles = {
         cursor: 'pointer',
         transition: 'all 0.3s ease',
         boxShadow: '0 4px 10px rgba(102, 126, 234, 0.3)',
-        marginTop: 'auto',
+    },
+    regenerateButton: {
+        width: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '8px',
+        padding: '12px 20px',
+        backgroundColor: '#f59e0b',
+        color: '#fff',
+        border: 'none',
+        borderRadius: '10px',
+        fontSize: '0.95rem',
+        fontWeight: '600',
+        cursor: 'pointer',
+        transition: 'all 0.3s ease',
+        boxShadow: '0 4px 10px rgba(245, 158, 11, 0.3)',
+    },
+    lateIndicator: {
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '8px',
+        padding: '8px 16px',
+        backgroundColor: '#fef3c7',
+        color: '#92400e',
+        borderRadius: '8px',
+        fontSize: '0.85rem',
+        fontWeight: 'bold',
+        marginBottom: '1rem',
+        border: '2px solid #f59e0b',
+    },
+    expiredIndicator: {
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '8px',
+        padding: '8px 16px',
+        backgroundColor: '#fee2e2',
+        color: '#991b1b',
+        borderRadius: '8px',
+        fontSize: '0.85rem',
+        fontWeight: 'bold',
+        marginBottom: '1rem',
+        border: '2px solid #dc2626',
     },
 };
 

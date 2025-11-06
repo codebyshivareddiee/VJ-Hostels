@@ -80,13 +80,23 @@ const QRScanner = () => {
                     { qrCodeData: decodedText }
                 );
 
+                // Check if QR code is expired
+                if (verifyResponse.data.expired) {
+                    setError(verifyResponse.data.expirationReason || 'QR code has expired');
+                    setTimeout(() => {
+                        setError(null);
+                        startScanning();
+                    }, 5000);
+                    return;
+                }
+
                 if (verifyResponse.data.valid) {
                     const pass = verifyResponse.data.outpass;
                     setVerifiedPass(pass);
                     setScanResult(decodedText);
                     
                     // Auto-detect action based on pass status
-                    if (pass.status === 'approved') {
+                    if (pass.status === 'approved' || pass.status === 'late') {
                         setDetectedAction('out');
                     } else if (pass.status === 'out') {
                         setDetectedAction('in');
@@ -124,7 +134,15 @@ const QRScanner = () => {
             resetScanner();
         } catch (err) {
             console.error(`Error during ${detectedAction}:`, err);
-            alert(err.response?.data?.message || `Failed to ${detectedAction === 'out' ? 'check out' : 'check in'} student`);
+            const errorMsg = err.response?.data?.message || `Failed to ${detectedAction === 'out' ? 'check out' : 'check in'} student`;
+            
+            // Check if regeneration is required
+            if (err.response?.data?.requiresRegeneration) {
+                alert(`❌ ${errorMsg}\n\nThe student must regenerate their QR code as "Late" from their current passes page.`);
+            } else {
+                alert(errorMsg);
+            }
+            
             resetScanner();
         }
     };
@@ -338,21 +356,32 @@ const QRScanner = () => {
 
                                 <div style={{
                                     padding: '12px',
-                                    backgroundColor: verifiedPass.status === 'approved' ? '#e8f5e9' : '#fff3e0',
+                                    backgroundColor: 
+                                        verifiedPass.status === 'approved' ? '#e8f5e9' : 
+                                        verifiedPass.status === 'late' ? '#fef3c7' : 
+                                        '#fff3e0',
                                     borderRadius: '8px',
                                     marginBottom: '12px'
                                 }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-                                        <AlertCircle size={18} color={verifiedPass.status === 'approved' ? '#4CAF50' : '#FF9800'} />
+                                        <AlertCircle size={18} color={
+                                            verifiedPass.status === 'approved' ? '#4CAF50' : 
+                                            verifiedPass.status === 'late' ? '#f59e0b' : 
+                                            '#FF9800'
+                                        } />
                                         <div>
                                             <span style={{ fontSize: '0.85rem', color: '#666' }}>Current Status</span>
                                             <p style={{ 
                                                 margin: 0, 
                                                 fontWeight: 'bold', 
                                                 textTransform: 'uppercase',
-                                                color: verifiedPass.status === 'approved' ? '#4CAF50' : '#FF9800'
+                                                color: 
+                                                    verifiedPass.status === 'approved' ? '#4CAF50' : 
+                                                    verifiedPass.status === 'late' ? '#f59e0b' : 
+                                                    '#FF9800'
                                             }}>
                                                 {verifiedPass.status}
+                                                {verifiedPass.status === 'late' && ' (Regenerated after expiry)'}
                                             </p>
                                         </div>
                                     </div>
@@ -371,36 +400,62 @@ const QRScanner = () => {
                             {/* Action Button */}
                             <div style={{ marginTop: '1.5rem' }}>
                                 {detectedAction ? (
-                                    <button
-                                        onClick={handleAction}
-                                        style={{
-                                            width: '100%',
-                                            padding: '16px',
-                                            backgroundColor: detectedAction === 'out' ? '#4CAF50' : '#2196F3',
-                                            color: '#fff',
-                                            border: 'none',
-                                            borderRadius: '8px',
-                                            fontWeight: 'bold',
-                                            fontSize: '1.1rem',
-                                            cursor: 'pointer',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            gap: '10px',
-                                            transition: 'all 0.2s'
-                                        }}
-                                        onMouseEnter={(e) => {
-                                            e.target.style.transform = 'scale(1.02)';
-                                            e.target.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)';
-                                        }}
-                                        onMouseLeave={(e) => {
-                                            e.target.style.transform = 'scale(1)';
-                                            e.target.style.boxShadow = 'none';
-                                        }}
-                                    >
-                                        <CheckCircle size={24} />
-                                        {detectedAction === 'out' ? '✓ Confirm Exit (Check Out)' : '✓ Confirm Entry (Check In)'}
-                                    </button>
+                                    <>
+                                        {verifiedPass.status === 'late' && detectedAction === 'out' && (
+                                            <div style={{
+                                                width: '100%',
+                                                padding: '12px',
+                                                backgroundColor: '#fef3c7',
+                                                color: '#92400e',
+                                                borderRadius: '8px',
+                                                textAlign: 'center',
+                                                fontWeight: 'bold',
+                                                fontSize: '0.9rem',
+                                                marginBottom: '12px',
+                                                border: '2px solid #f59e0b',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                gap: '8px'
+                                            }}>
+                                                <Clock size={20} />
+                                                ⚠️ Late Entry - Pass was regenerated after scheduled time
+                                            </div>
+                                        )}
+                                        <button
+                                            onClick={handleAction}
+                                            style={{
+                                                width: '100%',
+                                                padding: '16px',
+                                                backgroundColor: 
+                                                    detectedAction === 'out' 
+                                                        ? (verifiedPass.status === 'late' ? '#f59e0b' : '#4CAF50')
+                                                        : '#2196F3',
+                                                color: '#fff',
+                                                border: 'none',
+                                                borderRadius: '8px',
+                                                fontWeight: 'bold',
+                                                fontSize: '1.1rem',
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                gap: '10px',
+                                                transition: 'all 0.2s'
+                                            }}
+                                            onMouseEnter={(e) => {
+                                                e.target.style.transform = 'scale(1.02)';
+                                                e.target.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)';
+                                            }}
+                                            onMouseLeave={(e) => {
+                                                e.target.style.transform = 'scale(1)';
+                                                e.target.style.boxShadow = 'none';
+                                            }}
+                                        >
+                                            <CheckCircle size={24} />
+                                            {detectedAction === 'out' ? '✓ Confirm Exit (Check Out)' : '✓ Confirm Entry (Check In)'}
+                                        </button>
+                                    </>
                                 ) : (
                                     <div style={{
                                         width: '100%',
