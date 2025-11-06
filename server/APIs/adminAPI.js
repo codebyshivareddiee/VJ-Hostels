@@ -118,7 +118,7 @@ adminApp.get('/profile', expressAsyncHandler(async (req, res) => {
 // create new student profile with automatic room allocation
 adminApp.post('/student-register', verifyAdmin, expressAsyncHandler(async (req, res) => {
     try {
-        const { name, rollNumber, branch, year, profilePhoto, phoneNumber, email, parentMobileNumber, password } = req.body;
+        const { name, rollNumber, branch, year, profilePhoto, phoneNumber, email, parentMobileNumber, password, parentName } = req.body;
         let { roomNumber } = req.body;
 
         const existingStudent = await Student.findOne({ rollNumber });
@@ -152,13 +152,13 @@ adminApp.post('/student-register', verifyAdmin, expressAsyncHandler(async (req, 
         const newStudent = new Student({
             name,
             rollNumber,
+            username: rollNumber, // Use rollNumber as username
             branch,
-            year,
-            profilePhoto,
             phoneNumber,
             email,
             parentMobileNumber,
-            roomNumber,
+            parentName: parentName || 'Not Provided', // Default value if not provided
+            room: roomNumber, // Use 'room' field as per model schema
             password,
             is_active: true
         });
@@ -178,6 +178,7 @@ adminApp.post('/student-register', verifyAdmin, expressAsyncHandler(async (req, 
         });
 
     } catch (error) {
+        console.error('Error registering student:', error);
         res.status(500).json({ error: error.message });
     }
 }));

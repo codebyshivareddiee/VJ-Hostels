@@ -1,0 +1,230 @@
+/* Responsive styles for DateTime Picker */
+@media (max-width: 768px) {
+    .datetime-picker-container {
+        max-width: 95vw !important;
+        max-height: 95vh !important;
+    }
+
+    .datetime-header {
+        padding: 12px 16px !important;
+    }
+
+    .datetime-header-day {
+        font-size: 11px !important;
+        margin-bottom: 4px !important;
+    }
+
+    .datetime-header-date {
+        font-size: 20px !important;
+    }
+
+    .datetime-header-time {
+        font-size: 16px !important;
+        margin-top: 4px !important;
+    }
+
+    .calendar-grid {
+        gap: 6px !important;
+    }
+
+    .calendar-day-button {
+        padding: 8px !important;
+        font-size: 13px !important;
+    }
+
+    .clock-face {
+        width: 220px !important;
+        height: 220px !important;
+    }
+
+    .clock-hour-button {
+        width: 32px !important;
+        height: 32px !important;
+        font-size: 13px !important;
+    }
+
+    .minute-controls {
+        flex-wrap: wrap !important;
+        gap: 8px !important;
+    }
+
+    .minute-button {
+        padding: 6px 12px !important;
+        font-size: 12px !important;
+    }
+
+    .minute-input {
+        width: 50px !important;
+        padding: 6px !important;
+        font-size: 14px !important;
+    }
+}
+
+@media (max-width: 480px) {
+    .datetime-picker-container {
+        max-width: 100vw !important;
+        max-height: 100vh !important;
+        border-radius: 0 !important;
+    }
+
+    .datetime-header {
+        padding: 10px 12px !important;
+    }
+
+    .datetime-header-day {
+        font-size: 10px !important;
+        margin-bottom: 3px !important;
+    }
+
+    .datetime-header-date {
+        font-size: 18px !important;
+    }
+
+    .datetime-header-time {
+        font-size: 15px !important;
+        margin-top: 3px !important;
+    }
+
+    .out-time-banner {
+        padding: 8px 12px !important;
+        font-size: 11px !important;
+        gap: 6px !important;
+    }
+
+    .out-time-banner svg {
+        width: 14px !important;
+        height: 14px !important;
+    }
+
+    .calendar-section {
+        padding: 15px !important;
+    }
+
+    .calendar-grid {
+        gap: 4px !important;
+    }
+
+    .calendar-day-button {
+        padding: 6px !important;
+        font-size: 12px !important;
+    }
+
+    .time-section {
+        padding: 15px !important;
+    }
+
+    .period-toggle {
+        gap: 8px !important;
+    }
+
+    .period-button {
+        padding: 8px 24px !important;
+        font-size: 14px !important;
+    }
+
+    .clock-face {
+        width: 200px !important;
+        height: 200px !important;
+    }
+
+    .clock-hour-button {
+        width: 28px !important;
+        height: 28px !important;
+        font-size: 12px !important;
+    }
+
+    .minute-controls {
+        gap: 6px !important;
+    }
+
+    .minute-button {
+        padding: 6px 10px !important;
+        font-size: 11px !important;
+    }
+
+    .minute-input {
+        width: 45px !important;
+        padding: 6px !important;
+        font-size: 13px !important;
+    }
+
+    .action-buttons {
+        padding: 12px 15px !important;
+        gap: 8px !important;
+    }
+
+    .action-button {
+        padding: 8px 20px !important;
+        font-size: 13px !important;
+    }
+}
+
+@media (max-width: 360px) {
+    .datetime-header {
+        padding: 8px 10px !important;
+    }
+
+    .datetime-header-day {
+        font-size: 9px !important;
+        margin-bottom: 2px !important;
+    }
+
+    .datetime-header-date {
+        font-size: 16px !important;
+    }
+
+    .datetime-header-time {
+        font-size: 13px !important;
+        margin-top: 2px !important;
+    }
+
+    .out-time-banner {
+        padding: 6px 10px !important;
+        font-size: 10px !important;
+    }
+
+    .clock-face {
+        width: 180px !important;
+        height: 180px !important;
+    }
+
+    .clock-hour-button {
+        width: 24px !important;
+        height: 24px !important;
+        font-size: 11px !important;
+    }
+
+    .minute-controls {
+        flex-direction: column !important;
+        align-items: stretch !important;
+    }
+
+    .minute-button {
+        width: 100% !important;
+    }
+
+    .period-button {
+        padding: 6px 20px !important;
+        font-size: 12px !important;
+    }
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: scale(0.95) translate(-50%, -50%);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translate(-50%, -50%);
+    }
+}
+
+.datetime-picker-container {
+    animation: fadeIn 0.2s ease-out;
+}
+
+.datetime-backdrop {
+    animation: fadeIn 0.2s ease-out;
+}
