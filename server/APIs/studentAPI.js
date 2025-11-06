@@ -117,8 +117,20 @@ studentApp.get('/profile', verifyStudent, expressAsyncHandler(async (req, res) =
 // to read announcement
 studentApp.get('/all-announcements',expressAsyncHandler(async (req, res) => {
     try {
-        const announcements = await Announcement.find();
-        res.status(200).json(announcements);
+        const announcements = await Announcement.find().sort({ createdAt: -1 });
+        const mapped = announcements.map(a => {
+            const obj = a.toObject();
+            if (obj.image && obj.image.data) {
+                try {
+                    obj.imageUrl = `data:${obj.image.contentType};base64,${obj.image.data.toString('base64')}`;
+                } catch (e) {
+                    obj.imageUrl = null;
+                }
+                delete obj.image;
+            }
+            return obj;
+        });
+        res.status(200).json(mapped);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -129,12 +141,24 @@ studentApp.get('/announcements',expressAsyncHandler(async (req, res) => {
     try {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-
         const announcements = await Announcement.find({
             createdAt: { $gte: today }
+        }).sort({ createdAt: -1 });
+
+        const mapped = announcements.map(a => {
+            const obj = a.toObject();
+            if (obj.image && obj.image.data) {
+                try {
+                    obj.imageUrl = `data:${obj.image.contentType};base64,${obj.image.data.toString('base64')}`;
+                } catch (e) {
+                    obj.imageUrl = null;
+                }
+                delete obj.image;
+            }
+            return obj;
         });
 
-        res.status(200).json(announcements);
+        res.status(200).json(mapped);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

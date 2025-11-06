@@ -102,6 +102,14 @@ const communityPostUpload = multer({
   fileFilter: fileFilter,
 });
 
+// Announcement image storage - use memory storage so we can compress and store in DB
+const announcementStorage = multer.memoryStorage();
+const announcementUpload = multer({
+  storage: announcementStorage,
+  limits: { fileSize: 8 * 1024 * 1024 }, // Limit: 8MB in memory
+  fileFilter: fileFilter,
+});
+
 // Middleware for uploading complaint images
 const uploadComplaintImage = (req, res, next) => {
   complaintsUpload.single('image')(req, res, (err) => {
@@ -139,4 +147,12 @@ module.exports = {
   uploadProfilePhoto,
   uploadMessageImage,
   uploadCommunityPostImage
+};
+
+// Export announcement upload separately (not used for disk storage)
+module.exports.uploadAnnouncementImage = (req, res, next) => {
+  announcementUpload.single('image')(req, res, (err) => {
+    if (err) return res.status(400).json({ message: err.message });
+    next();
+  });
 };

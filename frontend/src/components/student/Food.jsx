@@ -85,7 +85,7 @@ const Food = () => {
     const [error, setError] = useState(null);
     const [activeTab, setActiveTab] = useState('menu');
     const [mealType, setMealType] = useState('breakfast');
-    const [rating, setRating] = useState(5);
+    const [rating, setRating] = useState(0);
     const [feedback, setFeedback] = useState('');
     const [submitting, setSubmitting] = useState(false);
     const [submitSuccess, setSubmitSuccess] = useState(false);
@@ -249,6 +249,19 @@ const Food = () => {
         }, 2500); 
     };
     // --- END: CORE LOGIC & HANDLERS ---
+
+    // Keep the visible star rating in sync with the selected meal.
+    // If the user has previously submitted detailed feedback for the selected meal,
+    // show that rating; otherwise show no filled stars (0).
+    useEffect(() => {
+        const stored = userFeedbackDetails && userFeedbackDetails[mealType] && userFeedbackDetails[mealType].rating;
+        if (stored != null) {
+            setRating(Number(stored));
+        } else {
+            // don't inherit rating from previously-selected meal; reset to 0
+            setRating(0);
+        }
+    }, [mealType, userFeedbackDetails]);
 
 
     // --- START: RENDER HELPERS ---

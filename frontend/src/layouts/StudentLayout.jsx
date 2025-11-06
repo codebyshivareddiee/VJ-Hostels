@@ -17,7 +17,7 @@ function StudentLayout() {
   const [scrolled, setScrolled] = useState(false)
 
   const isAnnouncementsPage = location.pathname.includes('/announcements')
-  const isHomePage = location.pathname === '/student' || location.pathname === '/student/' || location.pathname === '/student/home' || location.pathname === '/student/home/'
+  const isStudentArea = location.pathname.startsWith('/student')
 
   const handleLogout = () => {
     // Clear state immediately
@@ -246,8 +246,8 @@ function StudentLayout() {
         </>
       )}
 
-      {/* Announcement Banner - Only show on home page */}
-      {isHomePage && <AnnouncementBanner />}
+  {/* Announcement Banner - Show across student area except the announcements page */}
+  {isStudentArea && !isAnnouncementsPage && <AnnouncementBanner />}
 
       {/* Page Content */}
       <main

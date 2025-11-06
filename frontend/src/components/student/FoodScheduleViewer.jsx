@@ -227,7 +227,7 @@ const FoodScheduleViewer = () => {
     const meals = getMealsForDate(selectedDate);
     const mealStatus = getMealStatusForDate(selectedDate);
     
-    console.log(`[RENDER] Selected date: ${selectedDate}, Paused meals for this date:`, mealStatus.pausedMeals);
+    // console.log(`[RENDER] Selected date: ${selectedDate}, Paused meals for this date:`, mealStatus.pausedMeals);
     
     // Get today's date in local timezone (not UTC)
     const todayDate = new Date();

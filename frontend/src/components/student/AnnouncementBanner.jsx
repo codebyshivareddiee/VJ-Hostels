@@ -9,9 +9,8 @@ const AnnouncementBanner = () => {
   const [announcements, setAnnouncements] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [dismissed, setDismissed] = useState(() => {
-    return sessionStorage.getItem('announcementBannerDismissed') === 'true';
-  });
+  // local-only dismissed state; do not persist to sessionStorage
+  const [dismissed, setDismissed] = useState(false);
   const [slide, setSlide] = useState(false);
 
   useEffect(() => {
@@ -20,8 +19,12 @@ const AnnouncementBanner = () => {
         const response = await axios.get(
           `${import.meta.env.VITE_SERVER_URL}/student-api/announcements`
         );
-        setAnnouncements(response.data || []);
-      } catch (error) {
+        const data = Array.isArray(response.data)
+          ? response.data.slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+          : [];
+        console.log('Fetched announcements for banner:', data);
+        setAnnouncements(data);
+      } catch (error) { 
         console.error('Error fetching announcements:', error);
       } finally {
         setLoading(false);
@@ -64,8 +67,8 @@ const AnnouncementBanner = () => {
   };
 
   const handleDismiss = () => {
+    // Keep dismissed state local-only (no storage).
     setDismissed(true);
-    sessionStorage.setItem('announcementBannerDismissed', 'true');
   };
 
   if (loading || dismissed || announcements.length === 0) return null;

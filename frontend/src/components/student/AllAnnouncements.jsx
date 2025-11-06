@@ -16,7 +16,8 @@ const AllAnnouncements = () => {
             try {
                 setLoading(true);
                 const response = await axios.get(`${import.meta.env.VITE_SERVER_URL}/student-api/all-announcements`);
-                setAllAnnouncements(Array.isArray(response.data) ? response.data : []);
+                const data = Array.isArray(response.data) ? response.data.slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)) : [];
+                setAllAnnouncements(data);
                 setLoading(false);
             } catch (error) {
                 console.error('Error fetching all announcements:', error);
@@ -47,6 +48,36 @@ const AllAnnouncements = () => {
         setExpandedAnnouncements(newExpanded);
     };
 
+    // Date helpers
+    const isSameDay = (d1, d2) => {
+        return d1.getFullYear() === d2.getFullYear() &&
+            d1.getMonth() === d2.getMonth() &&
+            d1.getDate() === d2.getDate();
+    };
+
+    const isToday = (dateStr) => {
+        const d = new Date(dateStr);
+        return isSameDay(new Date(), d);
+    };
+
+    const isYesterday = (dateStr) => {
+        const d = new Date(dateStr);
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        return isSameDay(yesterday, d);
+    };
+
+    const formatDateDisplay = (dateStr) => {
+        const d = new Date(dateStr);
+        if (isToday(dateStr)) {
+            return `Today, ${d.toLocaleTimeString()}`;
+        }
+        if (isYesterday(dateStr)) {
+            return `Yesterday, ${d.toLocaleTimeString()}`;
+        }
+        return d.toLocaleString();
+    };
+
     if (loading) return <p style={{ textAlign: 'center' }}>Loading...</p>;
     if (error) return <p style={{ textAlign: 'center', color: 'red' }}>{error}</p>;
 
@@ -60,6 +91,15 @@ const AllAnnouncements = () => {
                     return (
                         <div key={announcement._id} className="announcement-card">
                             <div className="announcement-card-body">
+                                {announcement.imageUrl && (
+                                    <div style={{ marginBottom: '0.75rem' }}>
+                                        <img
+                                            src={announcement.imageUrl}
+                                            alt={announcement.title}
+                                            style={{ width: '100%', maxHeight: 420, objectFit: 'cover', borderRadius: 8 }}
+                                        />
+                                    </div>
+                                )}
                                 <h5 className="announcement-card-title">{announcement.title}</h5>
                                 <p className="announcement-card-text">
                                     {isExpanded || !needsTruncation 
@@ -76,7 +116,7 @@ const AllAnnouncements = () => {
                                     </button>
                                 )}
                                 <small className="announcement-card-date">
-                                    Posted at: {new Date(announcement.createdAt).toLocaleString()}
+                                    Posted : {formatDateDisplay(announcement.createdAt)}
                                 </small>
                             </div>
                         </div>
