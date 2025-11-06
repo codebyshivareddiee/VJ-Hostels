@@ -93,115 +93,127 @@ const CurrentPasses = () => {
 
     return (
         <ErrorBoundary>
-            <div style={{ maxWidth: '1200px', margin: '2rem auto', padding: '0 1rem' }}>
-                <h2 style={{ textAlign: 'center', marginBottom: '1.5rem', color: '#333' }}>
-                    Current Active Passes
-                </h2>
+            <div style={styles.pageContainer}>
+                <div style={styles.headerSection}>
+                    <h1 style={styles.mainTitle}>Current Active Passes</h1>
+                    <p style={styles.subtitle}>Your approved outpasses ready to use</p>
+                </div>
 
-                <div style={{ 
-                    display: 'grid', 
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', 
-                    gap: '1.5rem' 
-                }}>
+                <div style={styles.cardsContainer}>
                     {currentPasses.map((pass) => (
                         <div key={pass._id} style={styles.card}>
-                            <div style={styles.cardHeader}>
-                                <h3 style={styles.cardTitle}>Outpass - {pass.type}</h3>
-                                <span style={{
-                                    ...styles.statusBadge,
-                                    backgroundColor: pass.status === 'approved' ? '#4CAF50' : '#FF9800'
-                                }}>
-                                    {pass.status === 'approved' ? 'APPROVED' : 'OUT'}
-                                </span>
-                            </div>
-
-                            <div style={styles.cardBody}>
-                                <div style={styles.infoSection}>
-                                    <div style={styles.infoRow}>
-                                        <User size={18} color="#666" />
+                            {/* Horizontal Layout: Left and Right Sections */}
+                            <div style={styles.cardContent}>
+                                {/* Left Section - Information */}
+                                <div style={styles.leftSection}>
+                                    {/* Header with Status */}
+                                    <div style={styles.cardHeaderInline}>
                                         <div>
-                                            <span style={styles.label}>Student Name:</span>
-                                            <span style={styles.value}>{pass.name}</span>
+                                            <h3 style={styles.cardTitle}>{pass.name}</h3>
+                                            <p style={styles.cardSubtitle}>
+                                                Outpass - <span style={{ textTransform: 'capitalize' }}>{pass.type}</span>
+                                            </p>
                                         </div>
+                                        <span style={{
+                                            ...styles.statusBadge,
+                                            backgroundColor: pass.status === 'approved' ? '#4CAF50' : '#FF9800',
+                                        }}>
+                                            {pass.status === 'approved' ? 'APPROVED' : 'OUT'}
+                                        </span>
                                     </div>
 
-                                    <div style={styles.infoRow}>
-                                        <FileText size={18} color="#666" />
-                                        <div>
-                                            <span style={styles.label}>Roll Number:</span>
-                                            <span style={styles.value}>{pass.rollNumber}</span>
+                                    {/* Student Details */}
+                                    <div style={styles.detailsSection}>
+                                        <div style={styles.detailRow}>
+                                            <FileText size={18} color="#667eea" style={{ flexShrink: 0 }} />
+                                            <div style={styles.detailContent}>
+                                                <span style={styles.detailLabel}>Roll Number</span>
+                                                <span style={styles.detailValue}>{pass.rollNumber}</span>
+                                            </div>
                                         </div>
-                                    </div>
 
-                                    <div style={styles.infoRow}>
-                                        <Phone size={18} color="#666" />
-                                        <div>
-                                            <span style={styles.label}>Parent's Phone:</span>
-                                            <span style={styles.value}>{pass.parentMobileNumber}</span>
+                                        <div style={styles.detailRow}>
+                                            <Phone size={18} color="#667eea" style={{ flexShrink: 0 }} />
+                                            <div style={styles.detailContent}>
+                                                <span style={styles.detailLabel}>Parent's Phone</span>
+                                                <span style={styles.detailValue}>{pass.parentMobileNumber}</span>
+                                            </div>
                                         </div>
-                                    </div>
 
-                                    <div style={styles.infoRow}>
-                                        <Calendar size={18} color="#666" />
-                                        <div>
-                                            <span style={styles.label}>Out Time:</span>
-                                            <span style={styles.value}>
-                                                {new Date(pass.outTime).toLocaleString()}
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    <div style={styles.infoRow}>
-                                        <Clock size={18} color="#666" />
-                                        <div>
-                                            <span style={styles.label}>In Time:</span>
-                                            <span style={styles.value}>
-                                                {new Date(pass.inTime).toLocaleString()}
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    <div style={styles.reasonBox}>
-                                        <span style={styles.label}>Reason:</span>
-                                        <p style={styles.reason}>{pass.reason}</p>
-                                    </div>
-
-                                    {pass.actualOutTime && (
-                                        <div style={{ ...styles.infoRow, backgroundColor: '#fff3e0', padding: '8px', borderRadius: '4px' }}>
-                                            <Clock size={18} color="#ff9800" />
-                                            <div>
-                                                <span style={styles.label}>Actually Left At:</span>
-                                                <span style={styles.value}>
-                                                    {new Date(pass.actualOutTime).toLocaleString()}
+                                        <div style={styles.detailRow}>
+                                            <Calendar size={18} color="#667eea" style={{ flexShrink: 0 }} />
+                                            <div style={styles.detailContent}>
+                                                <span style={styles.detailLabel}>Out Time</span>
+                                                <span style={styles.detailValue}>
+                                                    {new Date(pass.outTime).toLocaleString('en-IN', {
+                                                        day: '2-digit',
+                                                        month: 'short',
+                                                        year: 'numeric',
+                                                        hour: '2-digit',
+                                                        minute: '2-digit',
+                                                        hour12: true
+                                                    })}
                                                 </span>
                                             </div>
                                         </div>
-                                    )}
+
+                                        <div style={styles.detailRow}>
+                                            <Clock size={18} color="#667eea" style={{ flexShrink: 0 }} />
+                                            <div style={styles.detailContent}>
+                                                <span style={styles.detailLabel}>In Time</span>
+                                                <span style={styles.detailValue}>
+                                                    {new Date(pass.inTime).toLocaleString('en-IN', {
+                                                        day: '2-digit',
+                                                        month: 'short',
+                                                        year: 'numeric',
+                                                        hour: '2-digit',
+                                                        minute: '2-digit',
+                                                        hour12: true
+                                                    })}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <div style={styles.reasonBox}>
+                                            <span style={styles.detailLabel}>Reason</span>
+                                            <p style={styles.reasonText}>{pass.reason}</p>
+                                        </div>
+                                    </div>
+
+                                    {/* Download Button */}
+                                    <button 
+                                        onClick={() => handleDownloadPDF(pass)}
+                                        style={styles.downloadButton}
+                                        onMouseEnter={(e) => {
+                                            e.currentTarget.style.backgroundColor = '#5a67d8';
+                                            e.currentTarget.style.transform = 'translateY(-2px)';
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            e.currentTarget.style.backgroundColor = '#667eea';
+                                            e.currentTarget.style.transform = 'translateY(0)';
+                                        }}
+                                    >
+                                        <Download size={18} />
+                                        <span>Download Pass</span>
+                                    </button>
                                 </div>
 
-                                {pass.qrCodeData && (
-                                    <div style={styles.qrSection}>
-                                        <div style={styles.qrContainer}>
-                                            <QRCodeSVG 
-                                                value={pass.qrCodeData} 
-                                                size={160}
-                                                level="H"
-                                                includeMargin={true}
-                                            />
+                                {/* Right Section - QR Code */}
+                                <div style={styles.rightSection}>
+                                    {pass.qrCodeData && (
+                                        <div style={styles.qrWrapper}>
+                                            <div style={styles.qrContainer}>
+                                                <QRCodeSVG 
+                                                    value={pass.qrCodeData} 
+                                                    size={200}
+                                                    level="H"
+                                                    includeMargin={true}
+                                                />
+                                            </div>
+                                            <p style={styles.qrText}>Show this QR code at the gate</p>
                                         </div>
-                                        <p style={styles.qrText}>Show this QR code at the gate</p>
-                                    </div>
-                                )}
-                            </div>
-
-                            <div style={styles.cardFooter}>
-                                <button 
-                                    onClick={() => handleDownloadPDF(pass)}
-                                    style={styles.downloadButton}
-                                >
-                                    <Download size={18} />
-                                    <span>Download Pass</span>
-                                </button>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     ))}
@@ -212,95 +224,151 @@ const CurrentPasses = () => {
 };
 
 const styles = {
+    pageContainer: {
+        minHeight: '100vh',
+        background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
+        padding: '2rem 1rem',
+    },
+    headerSection: {
+        textAlign: 'center',
+        marginBottom: '2.5rem',
+    },
+    mainTitle: {
+        fontSize: '2.5rem',
+        fontWeight: '700',
+        margin: '0 0 0.5rem 0',
+        color: '#2d3748',
+        textShadow: '0 2px 4px rgba(0,0,0,0.05)',
+    },
+    subtitle: {
+        fontSize: '1.1rem',
+        margin: 0,
+        color: '#4a5568',
+        fontWeight: '400',
+    },
+    cardsContainer: {
+        maxWidth: '1100px',
+        margin: '0 auto',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '2rem',
+    },
     card: {
         backgroundColor: '#fff',
-        borderRadius: '12px',
-        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+        borderRadius: '16px',
+        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
         overflow: 'hidden',
-        transition: 'transform 0.2s, box-shadow 0.2s',
-        cursor: 'pointer',
+        transition: 'transform 0.3s, box-shadow 0.3s',
     },
-    cardHeader: {
-        backgroundColor: '#333',
-        color: '#fff',
-        padding: '1rem',
+    cardContent: {
+        display: 'flex',
+        flexDirection: 'row',
+        minHeight: '320px',
+    },
+    leftSection: {
+        flex: '1 1 60%',
+        padding: '2rem',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '1.5rem',
+    },
+    rightSection: {
+        flex: '1 1 40%',
+        padding: '2rem',
+        backgroundColor: '#f8f9fb',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderLeft: '1px solid #e2e8f0',
+    },
+    cardHeaderInline: {
         display: 'flex',
         justifyContent: 'space-between',
-        alignItems: 'center',
+        alignItems: 'flex-start',
+        paddingBottom: '1rem',
+        borderBottom: '2px solid #e2e8f0',
     },
     cardTitle: {
         margin: 0,
-        fontSize: '1.1rem',
-        textTransform: 'capitalize',
+        fontSize: '1.5rem',
+        fontWeight: '700',
+        color: '#2d3748',
+    },
+    cardSubtitle: {
+        margin: '0.25rem 0 0 0',
+        fontSize: '0.95rem',
+        color: '#718096',
+        fontWeight: '500',
     },
     statusBadge: {
-        padding: '4px 12px',
-        borderRadius: '12px',
+        padding: '6px 14px',
+        borderRadius: '20px',
         fontSize: '0.75rem',
         fontWeight: 'bold',
         color: '#fff',
+        textTransform: 'uppercase',
+        letterSpacing: '0.5px',
+        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
     },
-    cardBody: {
-        padding: '1.5rem',
-    },
-    infoSection: {
-        marginBottom: '1.5rem',
-    },
-    infoRow: {
+    detailsSection: {
         display: 'flex',
-        alignItems: 'flex-start',
-        gap: '12px',
-        marginBottom: '12px',
+        flexDirection: 'column',
+        gap: '0.75rem',
+        flex: 1,
     },
-    label: {
-        display: 'block',
-        fontSize: '0.85rem',
-        color: '#666',
+    detailRow: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '0.75rem',
+    },
+    detailContent: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '0.1rem',
+    },
+    detailLabel: {
+        fontSize: '0.75rem',
+        color: '#718096',
         fontWeight: '600',
-        marginBottom: '2px',
+        textTransform: 'uppercase',
+        letterSpacing: '0.5px',
     },
-    value: {
-        display: 'block',
+    detailValue: {
         fontSize: '0.95rem',
-        color: '#333',
+        color: '#2d3748',
+        fontWeight: '600',
     },
     reasonBox: {
-        marginTop: '16px',
-        padding: '12px',
-        backgroundColor: '#f5f5f5',
+        padding: '1rem',
+        backgroundColor: '#fff5e6',
+        borderLeft: '3px solid #f59e0b',
         borderRadius: '8px',
+        marginTop: '0.5rem',
     },
-    reason: {
-        margin: '8px 0 0 0',
+    reasonText: {
+        margin: '0.5rem 0 0 0',
         fontSize: '0.9rem',
-        color: '#333',
+        color: '#92400e',
         lineHeight: '1.5',
     },
-    qrSection: {
+    qrWrapper: {
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        padding: '1rem',
-        backgroundColor: '#f9f9f9',
-        borderRadius: '8px',
-        marginTop: '1rem',
+        gap: '1rem',
     },
     qrContainer: {
-        padding: '12px',
+        padding: '1rem',
         backgroundColor: '#fff',
-        borderRadius: '8px',
-        boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+        borderRadius: '12px',
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
     },
     qrText: {
-        marginTop: '12px',
-        fontSize: '0.9rem',
-        color: '#666',
+        margin: 0,
+        fontSize: '0.85rem',
+        color: '#4a5568',
+        fontWeight: '600',
         textAlign: 'center',
-    },
-    cardFooter: {
-        padding: '1rem',
-        backgroundColor: '#f5f5f5',
-        borderTop: '1px solid #e0e0e0',
     },
     downloadButton: {
         width: '100%',
@@ -308,15 +376,17 @@ const styles = {
         alignItems: 'center',
         justifyContent: 'center',
         gap: '8px',
-        padding: '12px',
-        backgroundColor: '#4CAF50',
+        padding: '12px 20px',
+        backgroundColor: '#667eea',
         color: '#fff',
         border: 'none',
-        borderRadius: '8px',
-        fontSize: '1rem',
+        borderRadius: '10px',
+        fontSize: '0.95rem',
         fontWeight: '600',
         cursor: 'pointer',
-        transition: 'background-color 0.2s',
+        transition: 'all 0.3s ease',
+        boxShadow: '0 4px 10px rgba(102, 126, 234, 0.3)',
+        marginTop: 'auto',
     },
 };
 

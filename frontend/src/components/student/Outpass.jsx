@@ -8,13 +8,35 @@ import 'react-datepicker/dist/react-datepicker.css';
 
 function Outpass() {
     const { user, loading } = useCurrentUser();
-    const { register, handleSubmit, control, formState: { errors }, reset } = useForm();
+    const { register, handleSubmit, control, formState: { errors }, reset, watch, setValue } = useForm();
     const navigate = useNavigate();
     const [activePass, setActivePass] = useState(null);
     const [pendingPass, setPendingPass] = useState(null);
     const [checkingActivePass, setCheckingActivePass] = useState(true);
     const [isMobileView, setIsMobileView] = useState(false);
+    const [calculatedType, setCalculatedType] = useState('');
 
+
+    // Watch outTime and inTime to calculate duration
+    const outTime = watch('outTime');
+    const inTime = watch('inTime');
+
+    // Calculate outpass type based on duration
+    useEffect(() => {
+        if (outTime && inTime) {
+            const outDate = new Date(outTime);
+            const inDate = new Date(inTime);
+            const durationInHours = (inDate - outDate) / (1000 * 60 * 60);
+
+            if (durationInHours <= 24) {
+                setCalculatedType('late pass');
+                setValue('type', 'late pass');
+            } else {
+                setCalculatedType('home pass');
+                setValue('type', 'home pass');
+            }
+        }
+    }, [outTime, inTime, setValue]);
 
     // console.log(user)
 
@@ -242,6 +264,9 @@ function Outpass() {
                                     timeCaption="Time"
                                     dateFormat="dd-MM-yyyy h:mm aa"
                                     className="form-input"
+                                    minDate={new Date()}
+                                    minTime={new Date()}
+                                    maxTime={new Date(new Date().setHours(23, 59, 59, 999))}
                                     popperPlacement="bottom"
                                     popperModifiers={[
                                         { name: 'offset', options: { offset: [0, 8] } },
@@ -272,6 +297,11 @@ function Outpass() {
                                     timeCaption="Time"
                                     dateFormat="dd-MM-yyyy h:mm aa"
                                     className="form-input"
+                                    minDate={outTime ? new Date(outTime) : new Date()}
+                                    minTime={outTime && field.value && new Date(field.value).toDateString() === new Date(outTime).toDateString() 
+                                        ? new Date(outTime) 
+                                        : new Date(new Date().setHours(0, 0, 0, 0))}
+                                    maxTime={new Date(new Date().setHours(23, 59, 59, 999))}
                                     popperPlacement="bottom"
                                     popperModifiers={[
                                         { name: 'offset', options: { offset: [0, 8] } },
@@ -302,11 +332,25 @@ function Outpass() {
                     <select
                         className="form-select"
                         {...register('type', { required: 'Type of outpass is required' })}
+                        disabled={true}
+                        style={{ backgroundColor: '#f0f0f0', cursor: 'not-allowed' }}
                     >
                         <option value="">Select Type</option>
                         <option value="late pass">Late Pass</option>
                         <option value="home pass">Home Pass</option>
                     </select>
+                    {calculatedType && (
+                        <div style={{ 
+                            marginTop: '0.5rem', 
+                            padding: '0.5rem', 
+                            backgroundColor: '#e7f3ff', 
+                            borderRadius: '4px',
+                            fontSize: '0.9rem',
+                            color: '#0066cc'
+                        }}>
+                            <strong>Auto-selected:</strong> {calculatedType === 'late pass' ? 'Late Pass (≤24 hours)' : 'Home Pass (>24 hours)'}
+                        </div>
+                    )}
                     {errors.type && <span className="error-message">{errors.type.message}</span>}
                 </div>
 

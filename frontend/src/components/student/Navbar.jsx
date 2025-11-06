@@ -27,7 +27,6 @@ function Navbar({ onNavigate, isDesktop = false, isInSidebar = false }) {
     };
 
     const handleLogout = () => {
-        // Clear state immediately
         clearUser()
         localStorage.removeItem('token')
         localStorage.removeItem('auth-token')

@@ -417,13 +417,13 @@ const QRScanner = () => {
                                         gap: '10px'
                                     }}>
                                         <XCircle size={24} />
-                                        <div>
+                                            <div>
                                             <div>Invalid Pass Status</div>
                                             <div style={{ fontSize: '0.85rem', marginTop: '4px', opacity: 0.9 }}>
                                                 Current status: <strong>{verifiedPass.status}</strong><br/>
                                                 {verifiedPass.status === 'pending' && 'Pass is not yet approved by admin'}
                                                 {verifiedPass.status === 'rejected' && 'Pass has been rejected'}
-                                                {verifiedAction === 'returned' && 'Student has already returned'}
+                                                {verifiedPass.status === 'returned' && 'Student has already returned'}
                                             </div>
                                         </div>
                                     </div>
