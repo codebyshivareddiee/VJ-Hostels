@@ -9,6 +9,7 @@ import logoLight from "../assets/vnrvjiet-logo.png";
 import { useAuthStore } from "../store/authStore";
 import GoogleOAuthButton from "./GoogleOAuthButton";
 import { useAdmin } from "../context/AdminContext";
+import SEO, { SEO_CONFIGS } from "../utils/SEO";
 
 const LoginPage = () => {
   const [searchParams] = useSearchParams();
@@ -67,17 +68,19 @@ const LoginPage = () => {
   }, [searchParams, navigate, forceResetAuthState, adminLogin]);
 
   return (
-    <div
-      className="min-vh-100 d-flex align-items-center justify-content-center"
-      style={{
-        backgroundImage: `url(${backgroundImage})`,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        position: "relative",
-        color: themeStyles.textColor,
-        overflow: "hidden",
-      }}
-    >
+    <>
+      <SEO {...SEO_CONFIGS.login} />
+      <div
+        className="min-vh-100 d-flex align-items-center justify-content-center"
+        style={{
+          backgroundImage: `url(${backgroundImage})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          position: "relative",
+          color: themeStyles.textColor,
+          overflow: "hidden",
+        }}
+      >
       {/* Overlay */}
       <div
         style={{
@@ -279,6 +282,7 @@ const LoginPage = () => {
         `}
       </style>
     </div>
+    </>
   );
 };
 

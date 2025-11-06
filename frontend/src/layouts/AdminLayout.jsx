@@ -19,11 +19,13 @@ import {
   User
 } from 'lucide-react';
 import logo from '../assets/vnrvjiet-logo.png';
+import axios from 'axios';
 
 const AdminLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
-  const { admin, logout } = useAdmin();
+  const [pendingOutpassCount, setPendingOutpassCount] = useState(0);
+  const { admin, logout, token } = useAdmin();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -36,6 +38,30 @@ const AdminLayout = () => {
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
+
+  useEffect(() => {
+    const fetchPendingOutpassCount = async () => {
+      if (token) {
+        try {
+          const response = await axios.get(`${import.meta.env.VITE_SERVER_URL}/admin-api/pending-outpasses`, {
+            headers: {
+              Authorization: `Bearer ${token}`
+            }
+          });
+          const count = response.data.pendingOutpasses?.length || 0;
+          console.log('Pending outpass count:', count);
+          setPendingOutpassCount(count);
+        } catch (error) {
+          console.error('Error fetching pending outpass count:', error);
+        }
+      }
+    };
+
+    fetchPendingOutpassCount();
+    // Refresh count every 30 seconds
+    const interval = setInterval(fetchPendingOutpassCount, 30000);
+    return () => clearInterval(interval);
+  }, [token]);
 
   const handleLogout = () => {
     logout();
@@ -170,6 +196,7 @@ const AdminLayout = () => {
             label="Outpasses" 
             to="/admin/outpasses"
             onClick={closeSidebarOnMobile}
+            badge={pendingOutpassCount}
           />
           <SidebarNavItem 
             icon={<Utensils size={20} />} 
@@ -355,7 +382,7 @@ const AdminLayout = () => {
   );
 };
 
-const SidebarNavItem = ({ icon, label, to, end = false, onClick }) => {
+const SidebarNavItem = ({ icon, label, to, end = false, onClick, badge }) => {
   return (
     <NavLink
       to={to}
@@ -393,9 +420,24 @@ const SidebarNavItem = ({ icon, label, to, end = false, onClick }) => {
     >
       {({ isActive }) => (
         <>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1 }}>
             {icon}
             <span>{label}</span>
+            {badge !== undefined && badge > 0 && (
+              <span style={{
+                backgroundColor: '#EF4444',
+                color: 'white',
+                borderRadius: '9999px',
+                padding: '0.125rem 0.5rem',
+                fontSize: '0.75rem',
+                fontWeight: '700',
+                minWidth: '20px',
+                textAlign: 'center',
+                lineHeight: '1.5'
+              }}>
+                {badge}
+              </span>
+            )}
           </div>
           <ChevronRight size={18} style={{ opacity: isActive ? 1 : 0.6 }} />
         </>
