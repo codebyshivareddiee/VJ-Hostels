@@ -173,14 +173,18 @@ function setupResponseTime(app) {
   app.use((req, res, next) => {
     const start = Date.now();
     
-    // Override res.end to set header before response is sent
+    // Store the original end function
     const originalEnd = res.end;
+    
+    // Override the end function
     res.end = function(...args) {
       const duration = Date.now() - start;
+      // Set header before response is sent
       if (!res.headersSent) {
         res.setHeader('X-Response-Time', `${duration}ms`);
       }
-      originalEnd.apply(this, args);
+      // Call the original end function
+      originalEnd.apply(res, args);
     };
     
     next();
@@ -199,10 +203,10 @@ function setupSEOMiddleware(app) {
   setupHTTPSRedirect(app);       // 2. Redirect to HTTPS
   setupSecurityHeaders(app);     // 3. Add security headers
   setupCompression(app);         // 4. Enable compression
-  setupCORS(app);                // 5. Set up CORS
-  setupTrailingSlash(app);       // 6. Handle trailing slashes
-  setupSEOFiles(app);            // 7. Serve SEO files
-  setupCaching(app);             // 8. Set up caching
+  // Note: CORS is already set up in server.js, skip it here
+  setupTrailingSlash(app);       // 5. Handle trailing slashes
+  // Note: SEO files are served separately in server.js
+  // setupCaching(app);          // 6. Caching handled by express.static
   
   // Note: Add setupSPARouting and setup404Handler at the end of your routes
   

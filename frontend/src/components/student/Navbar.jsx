@@ -60,14 +60,14 @@ function Navbar({ onNavigate, isDesktop = false, isInSidebar = false }) {
                         onClick={handleNavClick}
                         isDesktop={true}
                     />
-                    <NavItem
+                    {/* <NavItem
                         icon={<MessageSquare size={18} />}
                         label="Complaints"
                         to="complaints"
                         isActive={location.pathname.includes('/home/complaints')}
                         onClick={handleNavClick}
                         isDesktop={true}
-                    />
+                    /> */}
                     <NavItem
                         icon={<LogOut size={18} />}
                         label="Outpass"

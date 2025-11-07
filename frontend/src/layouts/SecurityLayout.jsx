@@ -110,7 +110,7 @@ const SecurityLayout = () => {
         {!isMobile && (
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
             <NavItem icon={<Scan size={18} />} label="QR Scanner" to="/security/scanner" isActive={isActive('/scanner')} onClick={closeSidebar} />
-            <NavItem icon={<CreditCard size={18} />} label="ID Check-in" to="/security/barcode-scanner" isActive={isActive('/barcode-scanner')} onClick={closeSidebar} />
+            <NavItem icon={<CreditCard size={18} />} label="ID Check-in" to="/security/scanner" isActive={isActive('/scanner')} onClick={closeSidebar} />
             <NavItem icon={<FileCheck size={18} />} label="Passes" to="/security/passes" isActive={isActive('/passes')} onClick={closeSidebar} />
             <NavItem icon={<Users size={18} />} label="Visitors" to="/security/visitors" isActive={isActive('/visitors')} onClick={closeSidebar} />
             <NavItem icon={<ClipboardCheck size={18} />} label="Attendance" to="/security/attendance" isActive={isActive('/attendance')} onClick={closeSidebar} />
@@ -352,7 +352,6 @@ const SidebarContent = ({ handleLogout, toggleSidebar, closeSidebar, isActive })
         }}
       >
         <SidebarNavItem icon={<Scan size={20} />} label="QR Scanner" to="/security/scanner" isActive={isActive('/scanner')} onClick={closeSidebar} />
-        <SidebarNavItem icon={<CreditCard size={20} />} label="ID Card Check-in" to="/security/barcode-scanner" isActive={isActive('/barcode-scanner')} onClick={closeSidebar} />
         <SidebarNavItem icon={<FileCheck size={20} />} label="Active Passes" to="/security/passes" isActive={isActive('/passes')} onClick={closeSidebar} />
         <SidebarNavItem icon={<Users size={20} />} label="Visitors" to="/security/visitors" isActive={isActive('/visitors')} onClick={closeSidebar} />
         <SidebarNavItem icon={<ClipboardCheck size={20} />} label="Attendance" to="/security/attendance" isActive={isActive('/attendance')} onClick={closeSidebar} />

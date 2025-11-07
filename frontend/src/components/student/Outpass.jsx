@@ -979,7 +979,7 @@ function Outpass() {
                             <strong>Auto-selected:</strong> {calculatedType === 'late pass' ? 'Late Pass (≤24 hours)' : 'Home Pass (>24 hours)'}
                         </div>
                     )}
-                    {errors.type && <span className="error-message">{errors.type.message}</span>}
+                    {/* {errors.type && <span className="error-message">{errors.type.message}</span>} */}
                 </div>
 
                 <button type="submit" className="form-button">Submit Outpass Request</button>
