@@ -222,30 +222,15 @@ const Students = () => {
                                 </div>
                                 <div className="col-md-4">
                                     <label htmlFor="branch" className="form-label">Branch</label>
-                                    <select
-                                        className="form-select"
+                                    <input
+                                        type="text"
+                                        className="form-control"
                                         id="branch"
                                         name="branch"
                                         value={formData.branch}
                                         onChange={handleInputChange}
                                         required
-                                    >
-                                        <option value="">Select Branch</option>
-                                        <option value="CSE">CSE</option>
-                                        <option value="CSM">CSM</option>
-                                        <option value="AIDS">AIDS</option>
-                                        <option value="CSD">CSD</option>
-                                        <option value="CSC">CSC</option>
-                                        <option value="IOT">IOT</option>
-                                        <option value="CSBS">CSBS</option>
-                                        <option value="IT">IT</option>
-                                        <option value="ECE">ECE</option>
-                                        <option value="EEE">EEE</option>
-                                        <option value="EIE">EIE</option>
-                                        <option value="ME">ME</option>
-                                        <option value="CE">CE</option>
-                                        <option value="AE">AE</option>
-                                    </select>
+                                    />
                                 </div>
                                 <div className="col-md-2">
                                     <label htmlFor="year" className="form-label">Year</label>
@@ -258,10 +243,10 @@ const Students = () => {
                                         required
                                     >
                                         <option value="">Select</option>
-                                        <option value="1">I</option>
-                                        <option value="2">II</option>
-                                        <option value="3">III</option>
-                                        <option value="4">IV</option>
+                                        <option value="1">1</option>
+                                        <option value="2">2</option>
+                                        <option value="3">3</option>
+                                        <option value="4">4</option>
                                     </select>
                                 </div>
                                 <div className="col-md-3">

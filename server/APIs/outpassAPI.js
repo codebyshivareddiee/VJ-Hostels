@@ -112,7 +112,7 @@ outpassApp.put('/approve/:id', verifyAdmin, expressAsyncHandler(async (req, res)
 
         res.status(200).json({
             message: 'Outpass approved successfully',
-            outpass: updatedOutpass,
+            outpass: outpass,
             redirectToFoodPause: true, // Signal frontend to redirect
             foodPauseUrl: `/student/food-pause?outpassId=${outpass._id}&approved=true`
         });
@@ -187,19 +187,33 @@ outpassApp.get('/history/:rollNumber', verifyStudent, expressAsyncHandler(async 
 // Security scan QR code - Mark as OUT
 outpassApp.post('/scan/out', expressAsyncHandler(async (req, res) => {
     try {
+        console.log('Scan out request received:', req.body);
+        
         const { qrCodeData } = req.body;
 
         if (!qrCodeData) {
+            console.log('No QR code data provided for scan out');
             return res.status(400).json({ message: "QR code data is required" });
         }
 
+        console.log('Searching for outpass to scan out:', qrCodeData);
         const outpass = await Outpass.findOne({ qrCodeData });
+        
         if (!outpass) {
+            console.log('No outpass found for scan out:', qrCodeData);
             return res.status(404).json({ message: "Invalid QR code" });
         }
 
+        console.log('Found outpass for scan out:', {
+            id: outpass._id,
+            name: outpass.name,
+            status: outpass.status,
+            rollNumber: outpass.rollNumber
+        });
+
         // Allow both 'approved' and 'late' status to scan out
         if (outpass.status !== 'approved' && outpass.status !== 'late') {
+            console.log('Invalid status for scan out:', outpass.status);
             return res.status(400).json({ 
                 message: `Cannot scan out. Current status: ${outpass.status}` 
             });
@@ -208,12 +222,15 @@ outpassApp.post('/scan/out', expressAsyncHandler(async (req, res) => {
         // Update status to 'out'
         outpass.status = 'out';
         outpass.actualOutTime = new Date();
+        
+        console.log('Saving outpass with out status');
         await outpass.save();
+        console.log('Outpass saved successfully');
 
         // Include late indicator in response
         const lateMessage = outpass.isLate ? " (Late Entry)" : "";
         
-        res.status(200).json({ 
+        const response = {
             message: `Student checked out successfully${lateMessage}`, 
             outpass,
             student: {
@@ -222,27 +239,49 @@ outpassApp.post('/scan/out', expressAsyncHandler(async (req, res) => {
                 outTime: outpass.actualOutTime,
                 isLate: outpass.isLate
             }
-        });
+        };
+        
+        console.log('Sending scan out response:', response);
+        res.status(200).json(response);
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        console.error('Error in scan/out endpoint:', error);
+        console.error('Error stack:', error.stack);
+        res.status(500).json({ 
+            error: error.message,
+            details: 'Check server logs for more information'
+        });
     }
 }));
 
 // Security scan QR code - Mark as RETURNED
 outpassApp.post('/scan/in', expressAsyncHandler(async (req, res) => {
     try {
+        console.log('Scan in request received:', req.body);
+        
         const { qrCodeData } = req.body;
 
         if (!qrCodeData) {
+            console.log('No QR code data provided for scan in');
             return res.status(400).json({ message: "QR code data is required" });
         }
 
+        console.log('Searching for outpass to scan in:', qrCodeData);
         const outpass = await Outpass.findOne({ qrCodeData });
+        
         if (!outpass) {
+            console.log('No outpass found for scan in:', qrCodeData);
             return res.status(404).json({ message: "Invalid QR code" });
         }
 
+        console.log('Found outpass for scan in:', {
+            id: outpass._id,
+            name: outpass.name,
+            status: outpass.status,
+            rollNumber: outpass.rollNumber
+        });
+
         if (outpass.status !== 'out') {
+            console.log('Invalid status for scan in:', outpass.status);
             return res.status(400).json({ 
                 message: `Cannot scan in. Current status: ${outpass.status}` 
             });
@@ -253,6 +292,11 @@ outpassApp.post('/scan/in', expressAsyncHandler(async (req, res) => {
         const scheduledInTime = new Date(outpass.inTime);
         
         if (now > scheduledInTime && !outpass.isLate) {
+            console.log('QR code expired for scan in:', {
+                now: now,
+                scheduledInTime: scheduledInTime,
+                isLate: outpass.isLate
+            });
             return res.status(400).json({ 
                 message: "QR code expired. Return time has passed. Student must regenerate QR code as Late.",
                 scheduledInTime: outpass.inTime,
@@ -264,7 +308,10 @@ outpassApp.post('/scan/in', expressAsyncHandler(async (req, res) => {
         // Update status to 'returned'
         outpass.status = 'returned';
         outpass.actualInTime = new Date();
+        
+        console.log('Saving outpass with returned status');
         await outpass.save();
+        console.log('Outpass saved successfully');
 
         // Update resume_from date if student has returned before inTime
         try {
@@ -312,7 +359,7 @@ outpassApp.post('/scan/in', expressAsyncHandler(async (req, res) => {
         // Include late indicator in response
         const lateMessage = outpass.isLate ? " (Late Return)" : "";
         
-        res.status(200).json({ 
+        const response = {
             message: `Student checked in successfully${lateMessage}`, 
             outpass,
             student: {
@@ -321,9 +368,17 @@ outpassApp.post('/scan/in', expressAsyncHandler(async (req, res) => {
                 inTime: outpass.actualInTime,
                 isLate: outpass.isLate
             }
-        });
+        };
+        
+        console.log('Sending scan in response:', response);
+        res.status(200).json(response);
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        console.error('Error in scan/in endpoint:', error);
+        console.error('Error stack:', error.stack);
+        res.status(500).json({ 
+            error: error.message,
+            details: 'Check server logs for more information'
+        });
     }
 }));
 
@@ -346,16 +401,29 @@ outpassApp.get('/details/:id', expressAsyncHandler(async (req, res) => {
 // Get outpass details by QR code (for verification)
 outpassApp.post('/verify-qr', expressAsyncHandler(async (req, res) => {
     try {
+        console.log('Verify QR request received:', req.body);
+        
         const { qrCodeData } = req.body;
 
         if (!qrCodeData) {
+            console.log('No QR code data provided');
             return res.status(400).json({ message: "QR code data is required" });
         }
 
+        console.log('Searching for outpass with QR code:', qrCodeData);
         const outpass = await Outpass.findOne({ qrCodeData });
+        
         if (!outpass) {
+            console.log('No outpass found for QR code:', qrCodeData);
             return res.status(404).json({ message: "Invalid QR code" });
         }
+
+        console.log('Found outpass:', {
+            id: outpass._id,
+            name: outpass.name,
+            status: outpass.status,
+            rollNumber: outpass.rollNumber
+        });
 
         const now = new Date();
         const scheduledInTime = new Date(outpass.inTime);
@@ -368,9 +436,10 @@ outpassApp.post('/verify-qr', expressAsyncHandler(async (req, res) => {
         if (outpass.status === 'out' && !outpass.isLate && now > scheduledInTime) {
             isExpired = true;
             expirationReason = 'QR code expired. Return time has passed. Please regenerate as Late.';
+            console.log('QR code expired for outpass:', outpass._id);
         }
 
-        res.status(200).json({ 
+        const response = {
             valid: !isExpired,
             expired: isExpired,
             expirationReason: expirationReason,
@@ -388,9 +457,17 @@ outpassApp.post('/verify-qr', expressAsyncHandler(async (req, res) => {
                 isLate: outpass.isLate,
                 regeneratedAt: outpass.regeneratedAt
             }
-        });
+        };
+        
+        console.log('Sending verify response:', response);
+        res.status(200).json(response);
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        console.error('Error in verify-qr endpoint:', error);
+        console.error('Error stack:', error.stack);
+        res.status(500).json({ 
+            error: error.message,
+            details: 'Check server logs for more information'
+        });
     }
 }));
 
@@ -547,6 +624,28 @@ outpassApp.post('/regenerate-qr/:id', verifyStudent, expressAsyncHandler(async (
     } catch (error) {
         console.error('Error regenerating QR code:', error);
         res.status(500).json({ error: error.message });
+    }
+}));
+
+// Health check endpoint
+outpassApp.get('/health', expressAsyncHandler(async (req, res) => {
+    try {
+        // Test database connection by counting outpasses
+        const count = await Outpass.countDocuments();
+        res.status(200).json({ 
+            status: 'healthy',
+            database: 'connected',
+            outpassCount: count,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Health check failed:', error);
+        res.status(500).json({ 
+            status: 'unhealthy',
+            database: 'disconnected',
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
     }
 }));
 
