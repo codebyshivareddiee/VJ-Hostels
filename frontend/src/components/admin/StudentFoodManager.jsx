@@ -5,11 +5,10 @@ import FoodAnalytics from './FoodAnalyticsFixed';
 
 const StudentFoodManager = () => {
     const [activeTab, setActiveTab] = useState('overview');
-    const [dateView, setDateView] = useState('today'); // 'today' or 'tomorrow'
+    const [selectedDate, setSelectedDate] = useState(''); // Current selected date
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-    const [todayStats, setTodayStats] = useState(null);
-    const [tomorrowStats, setTomorrowStats] = useState(null);
+    const [currentStats, setCurrentStats] = useState(null);
     const { token } = useAdmin();
 
     const getDefaultStats = () => ({
@@ -24,19 +23,36 @@ const StudentFoodManager = () => {
             totalMealsServed: 0,
             pausePercentage: 0
         },
+        foodCountToPrepare: {
+            breakfast: 0,
+            lunch: 0,
+            snacks: 0,
+            dinner: 0,
+            total: 0
+        },
         mealWiseStats: {
-            breakfast: { paused: 0, available: 0, served: 0, students: [] },
-            lunch: { paused: 0, available: 0, served: 0, students: [] },
-            snacks: { paused: 0, available: 0, served: 0, students: [] },
-            dinner: { paused: 0, available: 0, served: 0, students: [] }
+            breakfast: { paused: 0, available: 0, served: 0, foodCountToPrepare: 0, students: [] },
+            lunch: { paused: 0, available: 0, served: 0, foodCountToPrepare: 0, students: [] },
+            snacks: { paused: 0, available: 0, served: 0, foodCountToPrepare: 0, students: [] },
+            dinner: { paused: 0, available: 0, served: 0, foodCountToPrepare: 0, students: [] }
         },
         statusDistribution: {},
         allPauses: []
     });
 
     useEffect(() => {
-        fetchAllStats();
+        // Initialize with today's date
+        const today = getTodayDate();
+        setSelectedDate(today);
+        fetchStatsForDate(today);
     }, []);
+
+    // Fetch stats when selected date changes
+    useEffect(() => {
+        if (selectedDate) {
+            fetchStatsForDate(selectedDate);
+        }
+    }, [selectedDate]);
 
     const getTodayDate = () => {
         const today = new Date();
@@ -48,18 +64,10 @@ const StudentFoodManager = () => {
         tomorrow.setDate(tomorrow.getDate() + 1);
         return tomorrow.toISOString().split('T')[0];
     };
-
-    const fetchAllStats = async () => {
-        setLoading(true);
-        await Promise.all([
-            fetchStatsForDate(getTodayDate(), 'today'),
-            fetchStatsForDate(getTomorrowDate(), 'tomorrow')
-        ]);
-        setLoading(false);
-    };
     
-    const fetchStatsForDate = async (date, type) => {
+    const fetchStatsForDate = async (date) => {
         try {
+            setLoading(true);
             const response = await axios.get(
                 `${import.meta.env.VITE_SERVER_URL}/food-api/admin/food/stats/date?date=${date}`,
                 {
@@ -69,27 +77,38 @@ const StudentFoodManager = () => {
                 }
             );
             
-            if (type === 'today') {
-                setTodayStats(response.data);
-            } else {
-                setTomorrowStats(response.data);
-            }
+            setCurrentStats(response.data);
             setError('');
         } catch (err) {
-            console.error(`Error fetching ${type} stats:`, err);
-            setError(`Failed to fetch ${type} stats: ${err.response?.data?.error || err.message}`);
-            
-            // Set default stats on error
-            if (type === 'today') {
-                setTodayStats(getDefaultStats());
-            } else {
-                setTomorrowStats(getDefaultStats());
-            }
+            console.error(`Error fetching stats for ${date}:`, err);
+            setError(`Failed to fetch stats: ${err.response?.data?.error || err.message}`);
+            setCurrentStats(getDefaultStats());
+        } finally {
+            setLoading(false);
         }
     };
 
-    // Get current stats based on selected date view
-    const currentStats = dateView === 'today' ? todayStats : tomorrowStats;
+    const handleDateChange = (newDate) => {
+        setSelectedDate(newDate);
+    };
+
+    const isToday = (date) => {
+        return date === getTodayDate();
+    };
+
+    const isTomorrow = (date) => {
+        return date === getTomorrowDate();
+    };
+
+    const formatDateDisplay = (dateStr) => {
+        const date = new Date(dateStr + 'T00:00:00');
+        return date.toLocaleDateString('en-US', { 
+            weekday: 'short', 
+            year: 'numeric', 
+            month: 'short', 
+            day: 'numeric' 
+        });
+    };
 
     if (loading) {
         return (
@@ -108,7 +127,7 @@ const StudentFoodManager = () => {
                 {error}
                 <button 
                     className="btn btn-sm btn-outline-danger ms-3"
-                    onClick={fetchAllStats}
+                    onClick={() => fetchStatsForDate(selectedDate)}
                 >
                     Retry
                 </button>
@@ -130,7 +149,9 @@ const StudentFoodManager = () => {
                 <div>
                     <h4>👥 Student Food Management</h4>
                     <small className="text-muted">
-                        {dateView === 'today' ? 'Today' : 'Tomorrow'}: {currentStats.date}
+                        {formatDateDisplay(selectedDate)}
+                        {isToday(selectedDate) && <span className="badge bg-success ms-2">Today</span>}
+                        {isTomorrow(selectedDate) && <span className="badge bg-info ms-2">Tomorrow</span>}
                     </small>
                 </div>
                 
@@ -138,7 +159,7 @@ const StudentFoodManager = () => {
                     <div className="d-flex gap-2">
                         <button 
                             className="btn btn-primary"
-                            onClick={fetchAllStats}
+                            onClick={() => fetchStatsForDate(selectedDate)}
                         >
                             <i className="bi bi-arrow-clockwise me-2"></i>
                             Refresh Data
@@ -168,24 +189,133 @@ const StudentFoodManager = () => {
             {/* Tab Content */}
             {activeTab === 'overview' && (
                 <div>
-                    {/* Date Toggle Buttons */}
-                    <div className="btn-group mb-4 w-100" role="group">
-                        <button
-                            type="button"
-                            className={`btn ${dateView === 'today' ? 'btn-primary' : 'btn-outline-primary'}`}
-                            onClick={() => setDateView('today')}
-                        >
-                            <i className="bi bi-calendar-day me-2"></i>
-                            Today ({getTodayDate()})
-                        </button>
-                        <button
-                            type="button"
-                            className={`btn ${dateView === 'tomorrow' ? 'btn-primary' : 'btn-outline-primary'}`}
-                            onClick={() => setDateView('tomorrow')}
-                        >
-                            <i className="bi bi-calendar-plus me-2"></i>
-                            Tomorrow ({getTomorrowDate()})
-                        </button>
+                    {/* Date Selection Section */}
+                    <div className="card mb-4">
+                        <div className="card-body">
+                            <div className="row align-items-center">
+                                <div className="col-md-6">
+                                    <label className="form-label fw-bold">
+                                        <i className="bi bi-calendar3 me-2"></i>
+                                        Select Date to View Food Count
+                                    </label>
+                                    <input 
+                                        type="date" 
+                                        className="form-control form-control-lg" 
+                                        value={selectedDate}
+                                        onChange={(e) => handleDateChange(e.target.value)}
+                                        min={getTodayDate()}
+                                    />
+                                </div>
+                                <div className="col-md-6 mt-3 mt-md-0">
+                                    <label className="form-label fw-bold">Quick Select</label>
+                                    <div className="btn-group w-100" role="group">
+                                        <button
+                                            type="button"
+                                            className={`btn ${isToday(selectedDate) ? 'btn-primary' : 'btn-outline-primary'}`}
+                                            onClick={() => handleDateChange(getTodayDate())}
+                                        >
+                                            <i className="bi bi-calendar-day me-1"></i>
+                                            Today
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className={`btn ${isTomorrow(selectedDate) ? 'btn-primary' : 'btn-outline-primary'}`}
+                                            onClick={() => handleDateChange(getTomorrowDate())}
+                                        >
+                                            <i className="bi bi-calendar-plus me-1"></i>
+                                            Tomorrow
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Food Count to Prepare - Highlighted Section */}
+                    <div className="card mb-4" style={{ 
+                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                        border: 'none'
+                    }}>
+                        <div className="card-body text-white">
+                            <h5 className="card-title mb-3 fw-bold" style={{ color: '#ffffff' }}>
+                                <i className="bi bi-cart-check me-2"></i>
+                                🍽️ Food Count to Prepare
+                            </h5>
+                            <div className="row g-3 text-center">
+                                <div className="col-6 col-md-3">
+                                    <div style={{ 
+                                        background: 'rgba(255, 255, 255, 0.3)',
+                                        backdropFilter: 'blur(10px)',
+                                        borderRadius: '10px',
+                                        padding: '20px',
+                                        border: '1px solid rgba(255, 255, 255, 0.4)'
+                                    }}>
+                                        <div className="fs-5 mb-2 fw-bold" style={{ color: '#ffffff' }}>🍳 Breakfast</div>
+                                        <h1 className="mb-1 fw-bold" style={{ color: '#ffffff', fontSize: '3rem' }}>
+                                            {currentStats.foodCountToPrepare?.breakfast || 0}
+                                        </h1>
+                                        <small style={{ color: '#ffffff', fontSize: '0.9rem' }}>meals</small>
+                                    </div>
+                                </div>
+                                <div className="col-6 col-md-3">
+                                    <div style={{ 
+                                        background: 'rgba(255, 255, 255, 0.3)',
+                                        backdropFilter: 'blur(10px)',
+                                        borderRadius: '10px',
+                                        padding: '20px',
+                                        border: '1px solid rgba(255, 255, 255, 0.4)'
+                                    }}>
+                                        <div className="fs-5 mb-2 fw-bold" style={{ color: '#ffffff' }}>🍛 Lunch</div>
+                                        <h1 className="mb-1 fw-bold" style={{ color: '#ffffff', fontSize: '3rem' }}>
+                                            {currentStats.foodCountToPrepare?.lunch || 0}
+                                        </h1>
+                                        <small style={{ color: '#ffffff', fontSize: '0.9rem' }}>meals</small>
+                                    </div>
+                                </div>
+                                <div className="col-6 col-md-3">
+                                    <div style={{ 
+                                        background: 'rgba(255, 255, 255, 0.3)',
+                                        backdropFilter: 'blur(10px)',
+                                        borderRadius: '10px',
+                                        padding: '20px',
+                                        border: '1px solid rgba(255, 255, 255, 0.4)'
+                                    }}>
+                                        <div className="fs-5 mb-2 fw-bold" style={{ color: '#ffffff' }}>☕ Snacks</div>
+                                        <h1 className="mb-1 fw-bold" style={{ color: '#ffffff', fontSize: '3rem' }}>
+                                            {currentStats.foodCountToPrepare?.snacks || 0}
+                                        </h1>
+                                        <small style={{ color: '#ffffff', fontSize: '0.9rem' }}>meals</small>
+                                    </div>
+                                </div>
+                                <div className="col-6 col-md-3">
+                                    <div style={{ 
+                                        background: 'rgba(255, 255, 255, 0.3)',
+                                        backdropFilter: 'blur(10px)',
+                                        borderRadius: '10px',
+                                        padding: '20px',
+                                        border: '1px solid rgba(255, 255, 255, 0.4)'
+                                    }}>
+                                        <div className="fs-5 mb-2 fw-bold" style={{ color: '#ffffff' }}>🍽️ Dinner</div>
+                                        <h1 className="mb-1 fw-bold" style={{ color: '#ffffff', fontSize: '3rem' }}>
+                                            {currentStats.foodCountToPrepare?.dinner || 0}
+                                        </h1>
+                                        <small style={{ color: '#ffffff', fontSize: '0.9rem' }}>meals</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="text-center mt-4" style={{ 
+                                background: 'rgba(255, 255, 255, 0.2)',
+                                padding: '15px',
+                                borderRadius: '10px',
+                                border: '1px solid rgba(255, 255, 255, 0.3)'
+                            }}>
+                                <h4 className="mb-0 fw-bold" style={{ color: '#ffffff' }}>
+                                    Total Meals to Prepare: <span className="fw-bold" style={{ fontSize: '1.8rem' }}>
+                                        {currentStats.foodCountToPrepare?.total || 0}
+                                    </span>
+                                </h4>
+                            </div>
+                        </div>
                     </div>
 
                     {/* Summary Statistics Cards */}

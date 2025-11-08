@@ -1206,10 +1206,24 @@ foodApp.get('/admin/food/stats/date', verifyAdmin, expressAsyncHandler(async (re
 
         ['breakfast', 'lunch', 'snacks', 'dinner'].forEach(meal => {
             mealPauseStats[meal].served = Math.max(0, mealPauseStats[meal].available - mealPauseStats[meal].paused);
+            // Add foodCountToPrepare for each meal
+            mealPauseStats[meal].foodCountToPrepare = mealPauseStats[meal].served;
         });
 
         const totalStudentsWithPause = studentsWithPause.size;
         const totalMealsServed = Math.max(0, totalMealsAvailable - totalPausedMeals);
+
+        // Calculate total food count to prepare
+        const foodCountToPrepare = {
+            breakfast: mealPauseStats.breakfast.foodCountToPrepare,
+            lunch: mealPauseStats.lunch.foodCountToPrepare,
+            snacks: mealPauseStats.snacks.foodCountToPrepare,
+            dinner: mealPauseStats.dinner.foodCountToPrepare,
+            total: mealPauseStats.breakfast.foodCountToPrepare + 
+                   mealPauseStats.lunch.foodCountToPrepare + 
+                   mealPauseStats.snacks.foodCountToPrepare + 
+                   mealPauseStats.dinner.foodCountToPrepare
+        };
 
         let statusMap = {};
         try {
@@ -1247,6 +1261,7 @@ foodApp.get('/admin/food/stats/date', verifyAdmin, expressAsyncHandler(async (re
                 totalMealsServed,
                 pausePercentage: totalMealsAvailable > 0 ? ((totalPausedMeals / totalMealsAvailable) * 100).toFixed(2) : 0
             },
+            foodCountToPrepare, // Add this field for kitchen planning
             mealWiseStats: mealPauseStats,
             statusDistribution: statusMap,
             allPauses: pausesForDate.map(p => ({
