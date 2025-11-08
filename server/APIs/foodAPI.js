@@ -830,8 +830,39 @@ foodApp.get('/student/menu/today-from-schedule', expressAsyncHandler(async (req,
 // Get daily food statistics for admin
 foodApp.get('/admin/food/stats/today', verifyAdmin, expressAsyncHandler(async (req, res) => {
     try {
-        const FoodPauseEnhanced = require('../models/FoodPauseEnhanced');
-        const Outpass = require('../models/OutpassModel');
+        // Import models at the top of the try block to catch any import errors
+        let FoodPauseEnhanced;
+        let Outpass;
+        
+        try {
+            FoodPauseEnhanced = require('../models/FoodPauseEnhanced');
+            Outpass = require('../models/OutpassModel');
+        } catch (modelError) {
+            console.error('Error loading models:', modelError);
+            // Fallback to basic stats if enhanced models not available
+            const totalStudents = await StudentModel.countDocuments({ is_active: true });
+            return res.status(200).json({
+                date: formatLocalDate(new Date()),
+                summary: {
+                    totalStudents,
+                    availableStudents: totalStudents,
+                    totalStudentsWithPause: 0,
+                    studentsTakingMeals: totalStudents,
+                    totalMealsAvailable: totalStudents * 4,
+                    totalMealsPaused: 0,
+                    totalMealsServed: totalStudents * 4,
+                    pausePercentage: 0
+                },
+                mealWiseStats: {
+                    breakfast: { paused: 0, available: totalStudents, served: totalStudents, students: [] },
+                    lunch: { paused: 0, available: totalStudents, served: totalStudents, students: [] },
+                    snacks: { paused: 0, available: totalStudents, served: totalStudents, students: [] },
+                    dinner: { paused: 0, available: totalStudents, served: totalStudents, students: [] }
+                },
+                statusDistribution: {},
+                allPauses: []
+            });
+        }
         
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -846,11 +877,16 @@ foodApp.get('/admin/food/stats/today', verifyAdmin, expressAsyncHandler(async (r
         const todayEnd = new Date(today);
         todayEnd.setHours(23, 59, 59, 999);
 
-        const studentsOnOutpass = await Outpass.find({
-            status: { $in: ['out', 'returned'] },
-            outTime: { $lt: todayEnd },
-            inTime: { $gt: today }
-        }).distinct('student_id');
+        let studentsOnOutpass = [];
+        try {
+            studentsOnOutpass = await Outpass.find({
+                status: { $in: ['out', 'returned'] },
+                outTime: { $lt: todayEnd },
+                inTime: { $gt: today }
+            }).distinct('student_id');
+        } catch (outpassError) {
+            console.warn('Outpass query failed, continuing without outpass data:', outpassError.message);
+        }
 
         // Available students (not on outpass)
         const availableStudents = totalStudents - studentsOnOutpass.length;
@@ -874,15 +910,23 @@ foodApp.get('/admin/food/stats/today', verifyAdmin, expressAsyncHandler(async (r
                 // Meal is still available
                 mealWiseAvailable[meal] = availableStudents;
                 totalMealsAvailable += availableStudents;
+            } else {
+                // Meal has passed, set to 0
+                mealWiseAvailable[meal] = 0;
             }
         });
 
         // Find all active pauses for today
-        const pausesForToday = await FoodPauseEnhanced.find({
-            is_active: true,
-            pause_start_date: { $lte: todayStr },
-            pause_end_date: { $gte: todayStr }
-        }).populate('student_id', 'rollNumber name');
+        let pausesForToday = [];
+        try {
+            pausesForToday = await FoodPauseEnhanced.find({
+                is_active: true,
+                pause_start_date: { $lte: todayStr },
+                pause_end_date: { $gte: todayStr }
+            }).populate('student_id', 'rollNumber name hostel');
+        } catch (pauseError) {
+            console.warn('Pause query failed, continuing without pause data:', pauseError.message);
+        }
 
         // Group pauses by meal type
         const mealPauseStats = {
@@ -918,6 +962,12 @@ foodApp.get('/admin/food/stats/today', verifyAdmin, expressAsyncHandler(async (r
 
         // Process pauses and organize by meal type
         for (const pause of pausesForToday) {
+            // Check if student_id is populated
+            if (!pause.student_id) {
+                console.warn('Pause record without student_id:', pause._id);
+                continue;
+            }
+
             const mealType = pause.meal_type;
             if (mealPauseStats[mealType]) {
                 mealPauseStats[mealType].paused++;
@@ -925,43 +975,47 @@ foodApp.get('/admin/food/stats/today', verifyAdmin, expressAsyncHandler(async (r
                     student_id: pause.student_id._id,
                     rollNumber: pause.student_id.rollNumber,
                     name: pause.student_id.name,
-                    hostel: pause.student_id.hostel,
+                    hostel: pause.student_id.hostel || 'N/A',
                     pause_id: pause._id,
                     pause_type: pause.pause_type
                 });
                 totalPausedMeals++;
+                studentsWithPause.add(pause.student_id._id.toString());
             }
-            studentsWithPause.add(pause.student_id._id.toString());
         }
 
         // Calculate served meals for each meal type
         ['breakfast', 'lunch', 'snacks', 'dinner'].forEach(meal => {
-            mealPauseStats[meal].served = mealPauseStats[meal].available - mealPauseStats[meal].paused;
+            mealPauseStats[meal].served = Math.max(0, mealPauseStats[meal].available - mealPauseStats[meal].paused);
         });
 
         // Calculate total students with any pause
         const totalStudentsWithPause = studentsWithPause.size;
-        const totalMealsServed = totalMealsAvailable - totalPausedMeals;
+        const totalMealsServed = Math.max(0, totalMealsAvailable - totalPausedMeals);
 
         // Get status distribution
-        const statusCounts = await FoodPauseEnhanced.aggregate([
-            {
-                $match: {
-                    pause_start_date: { $lte: todayStr },
-                    pause_end_date: { $gte: todayStr }
+        let statusMap = {};
+        try {
+            const statusCounts = await FoodPauseEnhanced.aggregate([
+                {
+                    $match: {
+                        pause_start_date: { $lte: todayStr },
+                        pause_end_date: { $gte: todayStr }
+                    }
+                },
+                {
+                    $group: {
+                        _id: '$approval_status',
+                        count: { $sum: 1 }
+                    }
                 }
-            },
-            {
-                $group: {
-                    _id: '$approval_status',
-                    count: { $sum: 1 }
-                }
-            }
-        ]);
+            ]);
 
-        const statusMap = {};
-        for (const status of statusCounts) {
-            statusMap[status._id] = status.count;
+            for (const status of statusCounts) {
+                statusMap[status._id] = status.count;
+            }
+        } catch (aggregateError) {
+            console.warn('Status aggregation failed:', aggregateError.message);
         }
 
         res.status(200).json({
@@ -970,7 +1024,7 @@ foodApp.get('/admin/food/stats/today', verifyAdmin, expressAsyncHandler(async (r
                 totalStudents,
                 availableStudents,
                 totalStudentsWithPause,
-                studentsTakingMeals: availableStudents - totalStudentsWithPause,
+                studentsTakingMeals: Math.max(0, availableStudents - totalStudentsWithPause),
                 totalMealsAvailable,
                 totalMealsPaused: totalPausedMeals,
                 totalMealsServed,
@@ -980,12 +1034,12 @@ foodApp.get('/admin/food/stats/today', verifyAdmin, expressAsyncHandler(async (r
             statusDistribution: statusMap,
             allPauses: pausesForToday.map(p => ({
                 _id: p._id,
-                student: {
+                student: p.student_id ? {
                     id: p.student_id._id,
                     rollNumber: p.student_id.rollNumber,
                     name: p.student_id.name,
-                    hostel: p.student_id.hostel
-                },
+                    hostel: p.student_id.hostel || 'N/A'
+                } : null,
                 meal_type: p.meal_type,
                 pause_type: p.pause_type,
                 pause_start_date: p.pause_start_date,
@@ -993,11 +1047,247 @@ foodApp.get('/admin/food/stats/today', verifyAdmin, expressAsyncHandler(async (r
                 approval_status: p.approval_status,
                 is_active: p.is_active,
                 notes: p.notes
-            }))
+            })).filter(p => p.student !== null)
         });
     } catch (error) {
         console.error('Error fetching food stats:', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ 
+            error: 'Failed to fetch food statistics',
+            details: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
+    }
+}));
+
+// Get daily food statistics for admin (flexible date)
+foodApp.get('/admin/food/stats/date', verifyAdmin, expressAsyncHandler(async (req, res) => {
+    try {
+        const { date } = req.query; // Expected format: YYYY-MM-DD
+        
+        // Import models at the top of the try block to catch any import errors
+        let FoodPauseEnhanced;
+        let Outpass;
+        
+        try {
+            FoodPauseEnhanced = require('../models/FoodPauseEnhanced');
+            Outpass = require('../models/OutpassModel');
+        } catch (modelError) {
+            console.error('Error loading models:', modelError);
+            const totalStudents = await StudentModel.countDocuments({ is_active: true });
+            return res.status(200).json({
+                date: date || formatLocalDate(new Date()),
+                summary: {
+                    totalStudents,
+                    availableStudents: totalStudents,
+                    totalStudentsWithPause: 0,
+                    studentsTakingMeals: totalStudents,
+                    totalMealsAvailable: totalStudents * 4,
+                    totalMealsPaused: 0,
+                    totalMealsServed: totalStudents * 4,
+                    pausePercentage: 0
+                },
+                mealWiseStats: {
+                    breakfast: { paused: 0, available: totalStudents, served: totalStudents, students: [] },
+                    lunch: { paused: 0, available: totalStudents, served: totalStudents, students: [] },
+                    snacks: { paused: 0, available: totalStudents, served: totalStudents, students: [] },
+                    dinner: { paused: 0, available: totalStudents, served: totalStudents, students: [] }
+                },
+                statusDistribution: {},
+                allPauses: []
+            });
+        }
+        
+        // Parse the date or use today
+        let targetDate;
+        if (date) {
+            targetDate = new Date(date);
+        } else {
+            targetDate = new Date();
+        }
+        targetDate.setHours(0, 0, 0, 0);
+
+        const targetDateStr = formatLocalDate(targetDate);
+        
+        // Total number of active students
+        const totalStudents = await StudentModel.countDocuments({ is_active: true });
+
+        // Get students on outpass for the target date
+        const targetDateEnd = new Date(targetDate);
+        targetDateEnd.setHours(23, 59, 59, 999);
+
+        let studentsOnOutpass = [];
+        try {
+            studentsOnOutpass = await Outpass.find({
+                status: { $in: ['out', 'returned'] },
+                outTime: { $lt: targetDateEnd },
+                inTime: { $gt: targetDate }
+            }).distinct('student_id');
+        } catch (outpassError) {
+            console.warn('Outpass query failed:', outpassError.message);
+        }
+
+        const availableStudents = totalStudents - studentsOnOutpass.length;
+
+        // For future dates, all meals are available
+        const now = new Date();
+        const isToday = targetDateStr === formatLocalDate(now);
+        const isFuture = targetDate > now;
+        
+        let totalMealsAvailable = 0;
+        const mealWiseAvailable = {
+            breakfast: 0,
+            lunch: 0,
+            snacks: 0,
+            dinner: 0
+        };
+
+        if (isFuture) {
+            // All meals available for future dates
+            ['breakfast', 'lunch', 'snacks', 'dinner'].forEach(meal => {
+                mealWiseAvailable[meal] = availableStudents;
+                totalMealsAvailable += availableStudents;
+            });
+        } else if (isToday) {
+            // For today, check meal times
+            const currentHour = now.getHours();
+            ['breakfast', 'lunch', 'snacks', 'dinner'].forEach(meal => {
+                const mealEndHour = MEAL_TIMES[meal].end;
+                if (currentHour < mealEndHour) {
+                    mealWiseAvailable[meal] = availableStudents;
+                    totalMealsAvailable += availableStudents;
+                }
+            });
+        } else {
+            // Past dates - no meals available
+            totalMealsAvailable = 0;
+        }
+
+        // Find all active pauses for target date
+        let pausesForDate = [];
+        try {
+            pausesForDate = await FoodPauseEnhanced.find({
+                is_active: true,
+                pause_start_date: { $lte: targetDateStr },
+                pause_end_date: { $gte: targetDateStr }
+            }).populate('student_id', 'rollNumber name hostel');
+        } catch (pauseError) {
+            console.warn('Pause query failed:', pauseError.message);
+        }
+
+        // Group pauses by meal type
+        const mealPauseStats = {
+            breakfast: { available: mealWiseAvailable.breakfast, paused: 0, served: 0, students: [] },
+            lunch: { available: mealWiseAvailable.lunch, paused: 0, served: 0, students: [] },
+            snacks: { available: mealWiseAvailable.snacks, paused: 0, served: 0, students: [] },
+            dinner: { available: mealWiseAvailable.dinner, paused: 0, served: 0, students: [] }
+        };
+
+        const studentsWithPause = new Set();
+        let totalPausedMeals = 0;
+
+        for (const pause of pausesForDate) {
+            if (!pause.student_id) continue;
+
+            const mealType = pause.meal_type;
+            if (mealPauseStats[mealType]) {
+                mealPauseStats[mealType].paused++;
+                mealPauseStats[mealType].students.push({
+                    student_id: pause.student_id._id,
+                    rollNumber: pause.student_id.rollNumber,
+                    name: pause.student_id.name,
+                    hostel: pause.student_id.hostel || 'N/A',
+                    pause_id: pause._id,
+                    pause_type: pause.pause_type
+                });
+                totalPausedMeals++;
+                studentsWithPause.add(pause.student_id._id.toString());
+            }
+        }
+
+        ['breakfast', 'lunch', 'snacks', 'dinner'].forEach(meal => {
+            mealPauseStats[meal].served = Math.max(0, mealPauseStats[meal].available - mealPauseStats[meal].paused);
+            // Add foodCountToPrepare for each meal
+            mealPauseStats[meal].foodCountToPrepare = mealPauseStats[meal].served;
+        });
+
+        const totalStudentsWithPause = studentsWithPause.size;
+        const totalMealsServed = Math.max(0, totalMealsAvailable - totalPausedMeals);
+
+        // Calculate total food count to prepare
+        const foodCountToPrepare = {
+            breakfast: mealPauseStats.breakfast.foodCountToPrepare,
+            lunch: mealPauseStats.lunch.foodCountToPrepare,
+            snacks: mealPauseStats.snacks.foodCountToPrepare,
+            dinner: mealPauseStats.dinner.foodCountToPrepare,
+            total: mealPauseStats.breakfast.foodCountToPrepare + 
+                   mealPauseStats.lunch.foodCountToPrepare + 
+                   mealPauseStats.snacks.foodCountToPrepare + 
+                   mealPauseStats.dinner.foodCountToPrepare
+        };
+
+        let statusMap = {};
+        try {
+            const statusCounts = await FoodPauseEnhanced.aggregate([
+                {
+                    $match: {
+                        pause_start_date: { $lte: targetDateStr },
+                        pause_end_date: { $gte: targetDateStr }
+                    }
+                },
+                {
+                    $group: {
+                        _id: '$approval_status',
+                        count: { $sum: 1 }
+                    }
+                }
+            ]);
+
+            for (const status of statusCounts) {
+                statusMap[status._id] = status.count;
+            }
+        } catch (aggregateError) {
+            console.warn('Status aggregation failed:', aggregateError.message);
+        }
+
+        res.status(200).json({
+            date: targetDateStr,
+            summary: {
+                totalStudents,
+                availableStudents,
+                totalStudentsWithPause,
+                studentsTakingMeals: Math.max(0, availableStudents - totalStudentsWithPause),
+                totalMealsAvailable,
+                totalMealsPaused: totalPausedMeals,
+                totalMealsServed,
+                pausePercentage: totalMealsAvailable > 0 ? ((totalPausedMeals / totalMealsAvailable) * 100).toFixed(2) : 0
+            },
+            foodCountToPrepare, // Add this field for kitchen planning
+            mealWiseStats: mealPauseStats,
+            statusDistribution: statusMap,
+            allPauses: pausesForDate.map(p => ({
+                _id: p._id,
+                student: p.student_id ? {
+                    id: p.student_id._id,
+                    rollNumber: p.student_id.rollNumber,
+                    name: p.student_id.name,
+                    hostel: p.student_id.hostel || 'N/A'
+                } : null,
+                meal_type: p.meal_type,
+                pause_type: p.pause_type,
+                pause_start_date: p.pause_start_date,
+                pause_end_date: p.pause_end_date,
+                approval_status: p.approval_status,
+                is_active: p.is_active,
+                notes: p.notes
+            })).filter(p => p.student !== null)
+        });
+    } catch (error) {
+        console.error('Error fetching food stats for date:', error);
+        res.status(500).json({ 
+            error: 'Failed to fetch food statistics',
+            details: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
     }
 }));
 

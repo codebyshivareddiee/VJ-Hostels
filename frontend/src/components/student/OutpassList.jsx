@@ -197,17 +197,6 @@ const OutpassList = () => {
             }}>
                 <style>
                     {`
-                        @keyframes fadeIn {
-                            from { opacity: 0; transform: translateY(10px); }
-                            to { opacity: 1; transform: translateY(0); }
-                        }
-                        .outpass-card-hover {
-                            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-                        }
-                        .outpass-card-hover:hover {
-                            transform: translateY(-4px);
-                            box-shadow: 0 8px 24px rgba(0,0,0,0.12) !important;
-                        }
                         @media (max-width: 768px) {
                             .outpass-grid {
                                 grid-template-columns: 1fr !important;
@@ -219,13 +208,12 @@ const OutpassList = () => {
                 <div className="outpass-grid" style={{
                     display: 'grid',
                     gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
-                    gap: '1.25rem',
-                    animation: 'fadeIn 0.6s ease-in-out'
+                    gap: '1.25rem'
                 }}>
                     {outpasses.map((outpass) => {
                         const statusStyle = getStatusStyle(outpass.status);
                         return (
-                            <div key={outpass._id} className="outpass-card-hover" style={{
+                            <div key={outpass._id} style={{
                                 backgroundColor: '#fff',
                                 borderRadius: '12px',
                                 overflow: 'hidden',

@@ -97,18 +97,11 @@ const Food = () => {
     const [submittedFeedbacks, setSubmittedFeedbacks] = useState({});
     // Store user's feedback details (rating + comment) for each meal
     const [userFeedbackDetails, setUserFeedbackDetails] = useState({});
-    const [showChef, setShowChef] = useState(true);
 
     // --- END: STATE ---
 
 
     // --- START: CORE LOGIC & HANDLERS ---
-    useEffect(() => {
-  const timer = setTimeout(() => setShowChef(false), 3000); // show 3 seconds
-  return () => clearTimeout(timer);
-}, []);
-
-
     useEffect(() => {
         if (!document.getElementById('pulse-light-keyframes')) { 
             const style = document.createElement('style');
@@ -511,40 +504,6 @@ const Food = () => {
             </div>
         );
     };
-// 👇 ADD THIS BLOCK RIGHT BEFORE MAIN RETURN
-if (showChef) {
-  return (
-    <div style={{
-      display: 'flex', 
-      flexDirection: 'column',
-      justifyContent: 'center', 
-      alignItems: 'center', 
-      minHeight: '100vh',
-      padding: '1rem',
-      background: '#fff',
-      paddingBottom: '15vh'
-    }}>
-      <img 
-        src={pastryChef} 
-        alt="Chef Animation" 
-        style={{
-          width: '100%',
-          maxWidth: '300px',
-          height: 'auto', 
-          marginBottom: '1rem'
-        }} 
-      />
-      <h3 style={{
-        color: '#4364f7',
-        textAlign: 'center',
-        fontSize: 'clamp(1.2rem, 4vw, 1.5rem)',
-        padding: '0 1rem'
-      }}>
-        Preparing today's delicious menu...
-      </h3>
-    </div>
-  );
-}
     return (
         
         <div className="food-container">
