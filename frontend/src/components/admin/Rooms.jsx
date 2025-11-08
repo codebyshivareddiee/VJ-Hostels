@@ -34,9 +34,6 @@ const Rooms = () => {
 
 
 
-    // For allocating rooms to students
-    const [allocatingRooms, setAllocatingRooms] = useState(false);
-
     // For floor filtering
     const [selectedFloor, setSelectedFloor] = useState('all');
 
@@ -159,33 +156,6 @@ const Rooms = () => {
     const handleRoomClick = (room) => {
         setSelectedRoom(room);
         fetchRoomStudents(room.roomNumber);
-    };
-
-
-    const handleAllocateRooms = async () => {
-        if (!window.confirm('This will allocate rooms to students who don\'t have a room assigned. Continue?')) {
-            return;
-        }
-
-        try {
-            setAllocatingRooms(true);
-            const response = await axios.post(`${import.meta.env.VITE_SERVER_URL}/admin-api/allocate-rooms`,
-                {},
-                {
-                    headers: {
-                        Authorization: `Bearer ${token}`
-                    }
-                }
-            );
-            alert(response.data.message);
-            fetchRooms();
-            fetchRoomStats();
-        } catch (err) {
-            alert('Failed to allocate rooms: ' + (err.response?.data?.error || err.message));
-            console.error(err);
-        } finally {
-            setAllocatingRooms(false);
-        }
     };
 
     const handleOpenChangeRoomModal = (student) => {
@@ -330,20 +300,6 @@ const Rooms = () => {
             <div className="d-flex justify-content-between align-items-center mb-4">
                 <h2>Room Management</h2>
                 <div className="d-flex gap-2">
-                    <button
-                        className="btn btn-warning text-nowrap"
-                        onClick={handleAllocateRooms}
-                        disabled={allocatingRooms}
-                        style={{ whiteSpace: 'nowrap' }}
-                    >
-                        {allocatingRooms ? (
-                            <>
-                                <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                                Allocating...
-                            </>
-                        ) : 'Allocate Unassigned Students'}
-                    </button>
-
                     <button
                         className="btn btn-primary text-nowrap"
                         onClick={() => setShowForm(!showForm)}
