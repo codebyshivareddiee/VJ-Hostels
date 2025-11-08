@@ -1,6 +1,7 @@
 const express = require('express');
 const foodApp = express.Router();
 const expressAsyncHandler = require('express-async-handler');
+const axios = require('axios');
 const { FoodMenu, FoodFeedback } = require('../models/FoodModel');
 const FoodPause = require('../models/FoodPause');
 const StudentModel = require('../models/StudentModel');
@@ -515,6 +516,33 @@ foodApp.post('/student/feedback', expressAsyncHandler(async (req, res) => {
 
         if (!studentId || !mealType || !rating) {
             return res.status(400).json({ message: 'studentId, mealType and rating are required' });
+        }
+
+        // Backend validation: Check for offensive content in feedback text
+        if (feedback && feedback.trim().length > 0) {
+            try {
+                const axios = require('axios');
+                const PYTHON_API_URL = process.env.PYTHON_API_URL || 'http://localhost:8001';
+                
+                const offensiveCheckResponse = await axios.post(`${PYTHON_API_URL}/check_offensive`, {
+                    text: feedback
+                });
+                
+                const { offensive, confidence } = offensiveCheckResponse.data;
+                
+                if (offensive === true) {
+                    return res.status(400).json({ 
+                        message: 'Feedback contains inappropriate or offensive language. Please revise your message.',
+                        offensive: true,
+                        confidence: confidence
+                    });
+                }
+            } catch (offensiveCheckError) {
+                console.error('⚠️ [Backend] Error checking offensive content:', offensiveCheckError.message);
+                // If the offensive check API fails, log the error but don't block the feedback
+                // This ensures the service remains available even if the Python API is down
+                console.log('⚠️ [Backend] Continuing with feedback submission despite check failure');
+            }
         }
 
         // Resolve student: allow rollNumber or _id
