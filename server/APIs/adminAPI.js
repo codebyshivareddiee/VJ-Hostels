@@ -196,9 +196,9 @@ adminApp.put('/student-delete', verifyAdmin, expressAsyncHandler(async (req, res
         }
 
         // If student has a room assigned, unassign it
-        if (student.roomNumber) {
+        if (student.room) {
             // Get the current room
-            const currentRoom = await Room.findOne({ roomNumber: student.roomNumber });
+            const currentRoom = await Room.findOne({ roomNumber: student.room });
 
             if (currentRoom) {
                 // Update the room (remove student from occupants)
@@ -209,7 +209,7 @@ adminApp.put('/student-delete', verifyAdmin, expressAsyncHandler(async (req, res
             }
 
             // Clear the student's room number
-            student.roomNumber = "";
+            student.room = "";
         }
 
         // Deactivate the student
@@ -634,11 +634,11 @@ adminApp.put('/update-student/:id', verifyAdmin, expressAsyncHandler(async (req,
         }
 
         // Handle room change if needed
-        if (roomNumber !== student.roomNumber) {
+        if (roomNumber !== student.room) {
             // If removing room assignment
             if (!roomNumber || roomNumber === "") {
                 // Get the old room
-                const oldRoom = await Room.findOne({ roomNumber: student.roomNumber });
+                const oldRoom = await Room.findOne({ roomNumber: student.room });
 
                 // Update the old room (remove student from occupants)
                 if (oldRoom) {
@@ -662,7 +662,7 @@ adminApp.put('/update-student/:id', verifyAdmin, expressAsyncHandler(async (req,
                 }
 
                 // Get the old room
-                const oldRoom = await Room.findOne({ roomNumber: student.roomNumber });
+                const oldRoom = await Room.findOne({ roomNumber: student.room });
 
                 // Update the old room (remove student from occupants)
                 if (oldRoom) {
@@ -681,11 +681,10 @@ adminApp.put('/update-student/:id', verifyAdmin, expressAsyncHandler(async (req,
         // Update student details
         student.name = name || student.name;
         student.branch = branch || student.branch;
-        student.year = year || student.year;
         student.phoneNumber = phoneNumber || student.phoneNumber;
         student.email = email || student.email;
         student.parentMobileNumber = parentMobileNumber || student.parentMobileNumber;
-        student.roomNumber = roomNumber !== undefined ? roomNumber : student.roomNumber;
+        student.room = roomNumber !== undefined ? roomNumber : student.room;
 
         await student.save();
 
@@ -724,14 +723,8 @@ adminApp.put('/change-student-room', verifyAdmin, expressAsyncHandler(async (req
             return res.status(400).json({ message: "Room is already at full capacity" });
         }
 
-        // Check if the room is for the same year students
-        const roomOccupants = await Student.find({ _id: { $in: newRoom.occupants } });
-        if (roomOccupants.length > 0 && roomOccupants[0].year !== student.year) {
-            return res.status(400).json({ message: "Room is allocated for different year students" });
-        }
-
         // Get the old room
-        const oldRoom = await Room.findOne({ roomNumber: student.roomNumber });
+        const oldRoom = await Room.findOne({ roomNumber: student.room });
 
         // Update the old room (remove student from occupants)
         if (oldRoom) {
@@ -746,7 +739,7 @@ adminApp.put('/change-student-room', verifyAdmin, expressAsyncHandler(async (req
         await newRoom.save();
 
         // Update the student's room number
-        student.roomNumber = newRoomNumber;
+        student.room = newRoomNumber;
         await student.save();
 
         res.status(200).json({
@@ -774,7 +767,7 @@ adminApp.put('/unassign-student-room', verifyAdmin, expressAsyncHandler(async (r
         }
 
         // Get the current room
-        const currentRoom = await Room.findOne({ roomNumber: student.roomNumber });
+        const currentRoom = await Room.findOne({ roomNumber: student.room });
 
         // If student doesn't have a room assigned
         if (!currentRoom) {
@@ -788,8 +781,8 @@ adminApp.put('/unassign-student-room', verifyAdmin, expressAsyncHandler(async (r
         await currentRoom.save();
 
         // Update the student's room number to empty
-        const oldRoomNumber = student.roomNumber;
-        student.roomNumber = "";
+        const oldRoomNumber = student.room;
+        student.room = "";
         await student.save();
 
         res.status(200).json({
@@ -819,18 +812,13 @@ adminApp.put('/exchange-student-rooms', verifyAdmin, expressAsyncHandler(async (
         }
 
         // Check if both students have rooms assigned
-        if (!student1.roomNumber || !student2.roomNumber) {
+        if (!student1.room || !student2.room) {
             return res.status(400).json({ message: "Both students must have rooms assigned" });
         }
 
-        // Check if students are in the same year
-        if (student1.year !== student2.year) {
-            return res.status(400).json({ message: "Room exchange is only allowed between students of the same year" });
-        }
-
         // Get the rooms
-        const room1 = await Room.findOne({ roomNumber: student1.roomNumber });
-        const room2 = await Room.findOne({ roomNumber: student2.roomNumber });
+        const room1 = await Room.findOne({ roomNumber: student1.room });
+        const room2 = await Room.findOne({ roomNumber: student2.room });
 
         if (!room1 || !room2) {
             return res.status(404).json({ message: "One or both rooms not found" });
@@ -845,9 +833,9 @@ adminApp.put('/exchange-student-rooms', verifyAdmin, expressAsyncHandler(async (
         room2.occupants.push(student1._id);
 
         // Swap room numbers for students
-        const tempRoomNumber = student1.roomNumber;
-        student1.roomNumber = student2.roomNumber;
-        student2.roomNumber = tempRoomNumber;
+        const tempRoomNumber = student1.room;
+        student1.room = student2.room;
+        student2.room = tempRoomNumber;
 
         // Save all changes
         await room1.save();
@@ -856,7 +844,7 @@ adminApp.put('/exchange-student-rooms', verifyAdmin, expressAsyncHandler(async (
         await student2.save();
 
         res.status(200).json({
-            message: `Successfully exchanged rooms: ${student1.name} moved to ${student1.roomNumber} and ${student2.name} moved to ${student2.roomNumber}`,
+            message: `Successfully exchanged rooms: ${student1.name} moved to ${student1.room} and ${student2.name} moved to ${student2.room}`,
             students: [student1, student2]
         });
     } catch (error) {
@@ -907,7 +895,7 @@ adminApp.post('/allocate-rooms', verifyAdmin, expressAsyncHandler(async (req, re
                 // Check if room has space
                 if (room.occupants.length < room.capacity) {
                     // Update student's room number
-                    student.roomNumber = room.roomNumber;
+                    student.room = room.roomNumber;
                     await student.save();
 
                     // Add student to room's occupants
@@ -1229,7 +1217,7 @@ adminApp.post('/generate-students', verifyAdmin, expressAsyncHandler(async (req,
                         const student = yearStudents[studentIndex];
 
                         // Update student's room number
-                        student.roomNumber = room.roomNumber;
+                        student.room = room.roomNumber;
                         await student.save();
 
                         // Add student to room's occupants
@@ -1256,7 +1244,7 @@ adminApp.post('/generate-students', verifyAdmin, expressAsyncHandler(async (req,
                     }
 
                     // Update student's room number
-                    student.roomNumber = room.roomNumber;
+                    student.room = room.roomNumber;
                     await student.save();
 
                     // Add student to room's occupants
@@ -1289,7 +1277,7 @@ adminApp.post('/generate-students', verifyAdmin, expressAsyncHandler(async (req,
                     }
 
                     // Update student's room number
-                    student.roomNumber = currentRoom.roomNumber;
+                    student.room = currentRoom.roomNumber;
                     await student.save();
 
                     // Add student to room's occupants

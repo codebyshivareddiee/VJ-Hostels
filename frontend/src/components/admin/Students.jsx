@@ -162,7 +162,7 @@ const Students = () => {
         student.rollNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
         student.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (student.branch && student.branch.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (student.roomNumber && student.roomNumber.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (student.room && student.room.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (student.phoneNumber && student.phoneNumber.includes(searchTerm))
     );
 
@@ -431,7 +431,7 @@ const Students = () => {
                                             <td>{student.rollNumber}</td>
                                             <td>{student.branch}</td>
                                             <td>{student.year}</td>
-                                            <td>{student.roomNumber}</td>
+                                            <td>{student.room}</td>
                                             <td>{student.email}</td>
                                             <td>{student.phoneNumber}</td>
                                             <td>

@@ -3,7 +3,7 @@ const Student = require('../models/StudentModel');
 
 /**
  * Extract floor number from room number
- * Examples: 001 -> 0, 101 -> 1, 1201 -> 12
+ * Examples: 001 -> 0, 101 -> 1, 939 -> 9, 1001 -> 10, 1201 -> 12
  */
 function extractFloorNumber(roomNumber) {
     const roomStr = roomNumber.toString();
@@ -13,13 +13,18 @@ function extractFloorNumber(roomNumber) {
         return 0;
     }
     
-    // For rooms 1001-1239 (floors 10-12)
+    // For rooms 1001-1239 (floors 10-12) - 4 digit room numbers starting with 1
     if (roomStr.length === 4 && roomStr.startsWith('1')) {
         return parseInt(roomStr.substring(0, 2));
     }
     
-    // For rooms 101-939 (floors 1-9)
-    return parseInt(roomStr.charAt(0));
+    // For rooms 101-939 (floors 1-9) - 3 digit room numbers
+    if (roomStr.length === 3) {
+        return parseInt(roomStr.charAt(0));
+    }
+    
+    // Default fallback - extract first digit
+    return parseInt(roomStr.charAt(0)) || 1;
 }
 
 /**
@@ -105,8 +110,12 @@ async function syncStudentsToRooms() {
         
         console.log(`📊 Found ${studentsWithRooms.length} active students with room assignments`);
         
-        // Extract unique room numbers from students
-        const uniqueRoomNumbers = [...new Set(studentsWithRooms.map(s => s.room))];
+        // Extract unique room numbers from students (filter out null/invalid values)
+        const uniqueRoomNumbers = [...new Set(
+            studentsWithRooms
+                .map(s => s.room)
+                .filter(room => room && room !== null && room !== '')
+        )];
         console.log(`🏠 Unique room numbers in student data: ${uniqueRoomNumbers.length}`);
         
         // Check for missing rooms and create them if needed
@@ -137,10 +146,17 @@ async function syncStudentsToRooms() {
         const capacityWarnings = [];
         
         studentsWithRooms.forEach(student => {
-            if (!studentsByRoom[student.room]) {
-                studentsByRoom[student.room] = [];
+            // Safety check: ensure room is valid
+            if (!student.room || student.room === null || student.room === '') {
+                console.warn(`⚠️  Student ${student.rollNumber} has invalid room assignment, skipping...`);
+                return;
             }
-            studentsByRoom[student.room].push(student._id);
+            
+            const roomKey = student.room.toString();
+            if (!studentsByRoom[roomKey]) {
+                studentsByRoom[roomKey] = [];
+            }
+            studentsByRoom[roomKey].push(student._id);
         });
         
         // Update each room with its students and check capacity
