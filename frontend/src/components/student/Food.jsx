@@ -5,6 +5,7 @@ import FoodPauseManager from './FoodPauseManagerEnhanced';
 import FoodScheduleViewer from './FoodScheduleViewer';
 import '../../styles/student/Food.css';
 import pastryChef from '../../assets/pastry-chef-animate.svg';
+import OffensiveTextInput, { checkOffensiveContent } from '../common/OffensiveTextInput';
 
 
 // --- START: SHARED CONSTANTS AND HELPERS ---
@@ -87,6 +88,7 @@ const Food = () => {
     const [mealType, setMealType] = useState('breakfast');
     const [rating, setRating] = useState(0);
     const [feedback, setFeedback] = useState('');
+    const [feedbackOffensive, setFeedbackOffensive] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [submitSuccess, setSubmitSuccess] = useState(false);
     const [quickRating, setQuickRating] = useState({ meal: null, rating: 0, submitted: false });
@@ -195,6 +197,23 @@ const Food = () => {
         
         try {
             setSubmitting(true);
+            setError(null);
+            setFeedbackOffensive(false);
+            
+            // Check for offensive content ONLY when submitting
+            if (feedback && feedback.trim().length > 0) {
+                console.log('🔍 [Food] Checking feedback for offensive content before submit...');
+                const offensiveCheck = await checkOffensiveContent(feedback);
+                console.log('🔍 [Food] Offensive check result:', offensiveCheck);
+                
+                if (offensiveCheck.isOffensive) {
+                    setFeedbackOffensive(true);
+                    setError("Cannot submit feedback with offensive content. Please revise your message.");
+                    setSubmitting(false);
+                    return;
+                }
+            }
+            
             const feedbackData = {
                 mealType,
                 rating: parseInt(rating),
@@ -202,10 +221,14 @@ const Food = () => {
                 // include student id (prefer _id, fallback to id or rollNumber)
                 studentId: user && (user._id || user.id)
             };
+            
             await axios.post(`${import.meta.env.VITE_SERVER_URL}/food-api/student/feedback`, feedbackData);
+            
             setSubmitSuccess(true);
             setFeedback('');
             setError(null);
+            setFeedbackOffensive(false);
+            
             // Optimistically update local aggregate so UI reflects the new feedback immediately
             updateLocalAggregate(mealType, parseInt(rating));
             // Mark that the current user has submitted feedback for this meal (prevents duplicates)
@@ -222,8 +245,15 @@ const Food = () => {
                 setSubmitSuccess(false);
             }, 3000);
         } catch (err) {
-            setError("Failed to submit feedback. Please try again.");
-            console.error(err);
+            // Show specific error message from backend if available
+            const errorMessage = err.response?.data?.message || "Failed to submit feedback. Please try again.";
+            setError(errorMessage);
+            console.error('Error submitting feedback:', err);
+            
+            // If backend detected offensive content, ensure the flag is set
+            if (err.response?.data?.offensive === true) {
+                setFeedbackOffensive(true);
+            }
         } finally {
             setSubmitting(false);
         }
@@ -765,14 +795,23 @@ if (showChef) {
                     {/* Detailed Feedback */}
                     <div className="form-group mb-4">
                         <label className="form-label d-block text-start fw-bold mb-2">Your Experience (Optional)</label>
-                        <textarea
-                            className="form-control"
+                        <OffensiveTextInput
+                            name="feedback"
                             value={feedback}
-                            onChange={(e) => setFeedback(e.target.value)}
+                            onChange={(value) => setFeedback(value)}
                             disabled={submitting || !canSubmitFeedback(mealType)}
-                            rows="4"
+                            rows={4}
                             placeholder={`Share specific comments about the ${mealType} meal (taste, quantity, quality, etc.)`}
                         />
+                        {feedbackOffensive && (
+                            <div className="alert alert-danger d-flex align-items-center mt-2" role="alert">
+                                <i className="bi bi-exclamation-triangle-fill me-2" style={{ fontSize: '1.2rem' }}></i>
+                                <div>
+                                    <strong>Offensive Content Detected:</strong> Your feedback contains inappropriate language. 
+                                    Please revise your message before submitting.
+                                </div>
+                            </div>
+                        )}
                     </div>
                     
                     {/* Submission Button */}
