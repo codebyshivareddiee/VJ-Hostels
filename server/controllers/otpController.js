@@ -6,6 +6,7 @@ const AuditLog = require('../models/AuditLogModel');
 const OTPUtils = require('../utils/otpUtils');
 const notificationService = require('../services/notificationService');
 const { recordFailedAttempt, clearBruteForceRecord } = require('../middleware/rateLimitMiddleware');
+const { checkOffensiveContent } = require('../utils/offensiveContentChecker');
 
 class OTPController {
   // Request OTP
@@ -20,6 +21,18 @@ class OTPController {
           message: 'Missing required fields: studentId, visitorName, visitorPhone, guardId, purpose',
           code: 'MISSING_FIELDS',
           receivedData: { studentId, visitorName, visitorPhone, guardId, purpose }
+        });
+      }
+
+      // Check for offensive content in purpose
+      const offensiveCheck = await checkOffensiveContent(purpose);
+      if (offensiveCheck.isOffensive) {
+        console.log('🚫 [Server] Blocked OTP request due to offensive content:', offensiveCheck.reason);
+        return res.status(400).json({
+          success: false,
+          message: 'The purpose of visit contains inappropriate content. Please provide a valid and appropriate purpose.',
+          details: offensiveCheck.reason,
+          code: 'OFFENSIVE_CONTENT'
         });
       }
 
@@ -583,6 +596,18 @@ class OTPController {
           success: false,
           message: 'Missing required fields',
           code: 'MISSING_FIELDS'
+        });
+      }
+
+      // Check for offensive content in purpose
+      const offensiveCheck = await checkOffensiveContent(purpose);
+      if (offensiveCheck.isOffensive) {
+        console.log('🚫 [Server] Blocked OTP generation due to offensive content:', offensiveCheck.reason);
+        return res.status(400).json({
+          success: false,
+          message: 'The purpose of visit contains inappropriate content. Please provide a valid and appropriate purpose.',
+          details: offensiveCheck.reason,
+          code: 'OFFENSIVE_CONTENT'
         });
       }
 
