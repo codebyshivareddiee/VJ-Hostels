@@ -1,0 +1,11 @@
+.outpass-container {
+  min-height: 100vh;
+  min-height: 100dvh; /* Dynamic viewport height for mobile */
+  padding-top: env(safe-area-inset-top); /* iOS notch support */
+}
+
+/* Ensure body/html extends to full viewport */
+body, html, #root {
+  min-height: 100vh;
+  min-height: 100dvh;
+}

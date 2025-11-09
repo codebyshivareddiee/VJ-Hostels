@@ -74,7 +74,7 @@ function StudentLayout() {
         }}
       >
         {/* Left section */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.15rem' }}>
           {isMobile && (
             <button
               style={{
