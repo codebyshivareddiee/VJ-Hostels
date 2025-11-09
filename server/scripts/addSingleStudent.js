@@ -66,10 +66,10 @@ async function addStudent(studentData) {
 
 // Student data for 22071A1216@vnrvjiet.in
 const studentData = {
-  rollNumber: 'mkrishna',
-  username: 'mkrishna',
-  name: 'mkrishna', // Replace with actual name if known
-  email: 'mkrishna@vnrvjiet.in',
+  rollNumber: '23071a7243',
+  username: '23071a7243',
+  name: '23071a7243', // Replace with actual name if known
+  email: '23071a7243@vnrvjiet.in',
   branch: 'CSD',
   role: 'student',
   is_active: true,
