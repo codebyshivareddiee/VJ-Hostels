@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Clock, CheckCircle, XCircle, Phone, User, Calendar, AlertCircle, Settings, Copy, Check, Plus } from 'lucide-react';
+import { Users, Clock, CheckCircle, XCircle, Phone, User, Calendar, AlertCircle, Settings, Copy, Check, Plus, AlertTriangle } from 'lucide-react';
 import useCurrentUser from '../../hooks/student/useCurrentUser';
 import VisitorPreferences from './VisitorPreferences';
 import io from 'socket.io-client';
+import { checkOffensiveContent } from '../common/OffensiveTextInput';
 
 const VisitorManagement = () => {
   const { user } = useCurrentUser();
@@ -20,6 +21,7 @@ const VisitorManagement = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [copiedOTP, setCopiedOTP] = useState(null);
+  const [offensiveWarning, setOffensiveWarning] = useState(null);
   const [visitorForm, setVisitorForm] = useState({
     visitorName: '',
     visitorPhone: '',
@@ -211,6 +213,31 @@ const VisitorManagement = () => {
     e.preventDefault();
     try {
       setLoading(true);
+      setOffensiveWarning(null);
+
+      // Check for offensive content in purpose
+      if (visitorForm.purpose && visitorForm.purpose.trim().length > 0) {
+        console.log('🔍 Checking purpose for offensive content:', visitorForm.purpose);
+        const offensiveCheck = await checkOffensiveContent(visitorForm.purpose);
+        console.log('✅ Offensive check result:', offensiveCheck);
+        
+        if (offensiveCheck.isOffensive) {
+          setOffensiveWarning(
+            'The purpose of visit contains inappropriate content (offensive language, emojis, or random text). Please revise it before submitting.'
+          );
+          setLoading(false);
+          
+          // Scroll to the warning message
+          setTimeout(() => {
+            const warningElement = document.querySelector('.offensive-warning-visitor');
+            if (warningElement) {
+              warningElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          }, 100);
+          return;
+        }
+      }
+
       const token = localStorage.getItem('token');
       const response = await fetch(`${import.meta.env.VITE_SERVER_URL}/api/otp/generate`, {
         method: 'POST',
@@ -239,6 +266,7 @@ const VisitorManagement = () => {
           purpose: '',
           groupSize: 1
         });
+        setOffensiveWarning(null);
       } else {
         setError('Failed to generate OTP');
       }
@@ -315,6 +343,31 @@ const VisitorManagement = () => {
                   </h5>
                 </div>
                 <div className="card-body">
+                  {offensiveWarning && (
+                    <div className="offensive-warning-visitor alert alert-warning d-flex align-items-start mb-3" role="alert" style={{
+                      backgroundColor: '#fff3cd',
+                      border: '2px solid #ffc107',
+                      borderRadius: '8px',
+                      animation: 'shake 0.5s'
+                    }}>
+                      <AlertTriangle size={24} className="me-2 flex-shrink-0" style={{ color: '#856404', marginTop: '2px' }} />
+                      <div className="flex-grow-1">
+                        <h6 className="mb-1" style={{ color: '#856404', fontWeight: 'bold' }}>
+                          ⚠️ Inappropriate Content Detected
+                        </h6>
+                        <p className="mb-0" style={{ color: '#856404' }}>
+                          {offensiveWarning}
+                        </p>
+                      </div>
+                      <button 
+                        type="button" 
+                        className="btn-close" 
+                        onClick={() => setOffensiveWarning(null)}
+                        style={{ color: '#856404' }}
+                      ></button>
+                    </div>
+                  )}
+                  
                   <form onSubmit={handleGenerateOTP}>
                     <div className="mb-3">
                       <label className="form-label">Visitor Name</label>
@@ -343,8 +396,16 @@ const VisitorManagement = () => {
                         className="form-control"
                         value={visitorForm.purpose}
                         onChange={(e) => setVisitorForm({...visitorForm, purpose: e.target.value})}
+                        placeholder="e.g., Meeting, Family visit, Academic discussion"
                         required
+                        style={{
+                          borderColor: offensiveWarning ? '#ffc107' : undefined,
+                          borderWidth: offensiveWarning ? '2px' : undefined
+                        }}
                       />
+                      <small className="form-text text-muted d-block mt-1">
+                        Please provide a clear and appropriate purpose. Offensive language, emojis, or gibberish will be rejected.
+                      </small>
                     </div>
                     <div className="mb-3">
                       <label className="form-label">Group Size</label>
@@ -362,8 +423,12 @@ const VisitorManagement = () => {
                       type="submit"
                       className="btn btn-primary"
                       disabled={loading}
+                      style={{
+                        opacity: loading ? 0.6 : 1,
+                        cursor: loading ? 'not-allowed' : 'pointer'
+                      }}
                     >
-                      {loading ? 'Generating...' : 'Generate OTP'}
+                      {loading ? 'Validating & Generating...' : 'Generate OTP'}
                     </button>
                   </form>
                 </div>
@@ -371,6 +436,16 @@ const VisitorManagement = () => {
             </div>
           </div>
         )}
+        
+        <style>
+          {`
+            @keyframes shake {
+              0%, 100% { transform: translateX(0); }
+              10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+              20%, 40%, 60%, 80% { transform: translateX(5px); }
+            }
+          `}
+        </style>
 
         {currentView === 'active' && (
           <div className="row">

@@ -10,6 +10,7 @@ const bcrypt = require('bcrypt');
 const Student = require('../models/StudentModel');
 const { uploadProfilePhoto, uploadComplaintImage, uploadCommunityPostImage } = require('../middleware/uploadMiddleware');
 const { verifyStudent } = require('../middleware/verifyToken');
+const { checkOffensiveContent } = require('../utils/offensiveContentChecker');
 require('dotenv').config();
 
 
@@ -290,6 +291,16 @@ studentApp.post('/apply-outpass', expressAsyncHandler(async (req, res) => {
             return res.status(400).json({ 
                 message: 'All fields are required',
                 received: { name, rollNumber, outTime, inTime, studentMobileNumber, parentMobileNumber, reason, type }
+            });
+        }
+
+        // Check for offensive content in reason
+        const offensiveCheck = await checkOffensiveContent(reason);
+        if (offensiveCheck.isOffensive) {
+            console.log('🚫 [Server] Blocked outpass request due to offensive content:', offensiveCheck.reason);
+            return res.status(400).json({ 
+                message: 'Your reason contains inappropriate content. Please provide a valid and appropriate reason.',
+                details: offensiveCheck.reason
             });
         }
 
