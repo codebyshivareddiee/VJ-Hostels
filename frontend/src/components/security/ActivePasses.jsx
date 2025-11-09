@@ -105,12 +105,12 @@ const ActivePasses = () => {
 
             {/* Summary Cards */}
             <div style={{ 
-                display: 'grid', 
-                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
+                display: 'flex', 
                 gap: '1rem',
                 marginBottom: '2rem'
             }}>
                 <div style={{
+                    flex: '1',
                     backgroundColor: '#e8f5e9',
                     padding: '1.5rem',
                     borderRadius: '8px',
@@ -121,6 +121,7 @@ const ActivePasses = () => {
                 </div>
 
                 <div style={{
+                    flex: '1',
                     backgroundColor: '#fff3e0',
                     padding: '1.5rem',
                     borderRadius: '8px',
@@ -156,7 +157,7 @@ const ActivePasses = () => {
                             </h2>
                             <div style={{ 
                                 display: 'grid', 
-                                gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', 
+                                gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 280px), 1fr))', 
                                 gap: '1rem' 
                             }}>
                                 {approvedPasses.map((pass) => (
@@ -174,7 +175,7 @@ const ActivePasses = () => {
                             </h2>
                             <div style={{ 
                                 display: 'grid', 
-                                gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', 
+                                gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 280px), 1fr))', 
                                 gap: '1rem' 
                             }}>
                                 {outPasses.map((pass) => (

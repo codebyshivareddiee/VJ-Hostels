@@ -74,7 +74,7 @@ function StudentLayout() {
         }}
       >
         {/* Left section */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.15rem' }}>
           {isMobile && (
             <button
               style={{
@@ -251,6 +251,7 @@ function StudentLayout() {
           minHeight: '100vh',
           position: 'relative',
           zIndex: 1,
+          overflow: 'visible',
         }}
       >
         <div
@@ -260,6 +261,7 @@ function StudentLayout() {
             margin: '0 auto',
             marginTop: '0px',
             paddingTop: (location.pathname === '/home' || location.pathname === '/home/' || location.pathname === '/student' || location.pathname === '/student/') ? '0px' : (isMobile ? '80px' : '100px'),
+            overflow: 'visible',
           }}
         >
           <Outlet />

@@ -34,9 +34,6 @@ const Rooms = () => {
 
 
 
-    // For allocating rooms to students
-    const [allocatingRooms, setAllocatingRooms] = useState(false);
-
     // For floor filtering
     const [selectedFloor, setSelectedFloor] = useState('all');
 
@@ -50,8 +47,6 @@ const Rooms = () => {
     // For unassigning student from room
     const [unassigningRoom, setUnassigningRoom] = useState(false);
 
-    // For syncing rooms
-    const [syncingRooms, setSyncingRooms] = useState(false);
     const [roomStats, setRoomStats] = useState(null);
 
     // Removed room exchange feature
@@ -163,85 +158,18 @@ const Rooms = () => {
         fetchRoomStudents(room.roomNumber);
     };
 
-
-
-    const handleSyncRooms = async () => {
-        if (!window.confirm('This will sync all students to their assigned rooms based on the database.\n\nAny missing rooms will be created automatically.\n\nContinue?')) {
-            return;
-        }
-
-        try {
-            setSyncingRooms(true);
-            const response = await axios.post(`${import.meta.env.VITE_SERVER_URL}/admin-api/rooms/sync`,
-                {},
-                {
-                    headers: {
-                        Authorization: `Bearer ${token}`
-                    }
-                }
-            );
-            
-            const { sync, statistics, warnings } = response.data;
-            
-            let message = `✅ Student-Room Sync Complete!\n\n` +
-                `👥 Students Synced: ${sync.studentsProcessed}\n` +
-                `🔄 Rooms Updated: ${sync.roomsUpdated}\n` +
-                `🏠 Unique Rooms: ${sync.uniqueRooms}\n`;
-            
-            if (sync.roomsCreated > 0) {
-                message += `✨ Rooms Created: ${sync.roomsCreated}\n`;
-            }
-            
-            message += `\n📊 Occupancy: ${statistics.totalOccupied}/${statistics.totalCapacity} (${statistics.occupancyRate}%)`;
-            
-            if (warnings) {
-                message += `\n\n⚠️ Warning: ${warnings.message}`;
-            }
-            
-            alert(message);
-            
-            fetchRooms();
-            fetchRoomStats();
-        } catch (err) {
-            alert('Failed to sync rooms: ' + (err.response?.data?.error || err.message));
-            console.error(err);
-        } finally {
-            setSyncingRooms(false);
-        }
-    };
-
-    const handleAllocateRooms = async () => {
-        if (!window.confirm('This will allocate rooms to students who don\'t have a room assigned. Continue?')) {
-            return;
-        }
-
-        try {
-            setAllocatingRooms(true);
-            const response = await axios.post(`${import.meta.env.VITE_SERVER_URL}/admin-api/allocate-rooms`,
-                {},
-                {
-                    headers: {
-                        Authorization: `Bearer ${token}`
-                    }
-                }
-            );
-            alert(response.data.message);
-            fetchRooms();
-            fetchRoomStats();
-        } catch (err) {
-            alert('Failed to allocate rooms: ' + (err.response?.data?.error || err.message));
-            console.error(err);
-        } finally {
-            setAllocatingRooms(false);
-        }
-    };
-
     const handleOpenChangeRoomModal = (student) => {
         setSelectedStudent(student);
         setNewRoomNumber('');
 
-        // Get available rooms (rooms with space)
-        const vacantRooms = rooms.filter(room => room.occupants.length < room.capacity);
+        // Get available rooms (rooms with space) and sort them numerically
+        const vacantRooms = rooms
+            .filter(room => room.occupants.length < room.capacity)
+            .sort((a, b) => {
+                const numA = parseInt(a.roomNumber) || 0;
+                const numB = parseInt(b.roomNumber) || 0;
+                return numA - numB;
+            });
         setAvailableRooms(vacantRooms);
 
         setShowChangeRoomModal(true);
@@ -372,34 +300,6 @@ const Rooms = () => {
             <div className="d-flex justify-content-between align-items-center mb-4">
                 <h2>Room Management</h2>
                 <div className="d-flex gap-2">
-                    <button
-                        className="btn btn-success"
-                        onClick={handleSyncRooms}
-                        disabled={syncingRooms}
-                        title="Sync students to their assigned rooms"
-                    >
-                        {syncingRooms ? (
-                            <>
-                                <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                                Syncing...
-                            </>
-                        ) : '🔄 Sync Students to Rooms'}
-                    </button>
-
-                    <button
-                        className="btn btn-warning text-nowrap"
-                        onClick={handleAllocateRooms}
-                        disabled={allocatingRooms}
-                        style={{ whiteSpace: 'nowrap' }}
-                    >
-                        {allocatingRooms ? (
-                            <>
-                                <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                                Allocating...
-                            </>
-                        ) : 'Allocate Unassigned Students'}
-                    </button>
-
                     <button
                         className="btn btn-primary text-nowrap"
                         onClick={() => setShowForm(!showForm)}
@@ -830,20 +730,25 @@ const Rooms = () => {
 
                                         <div className="form-group mt-4">
                                             <label htmlFor="newRoom" className="form-label">Select New Room</label>
-                                            <select
+                                            <input
+                                                type="text"
                                                 id="newRoom"
-                                                className="form-select"
+                                                className="form-control"
                                                 value={newRoomNumber}
                                                 onChange={(e) => setNewRoomNumber(e.target.value)}
+                                                list="changeRoomNumberList"
+                                                placeholder="Type room number to search..."
+                                                autoComplete="off"
                                                 disabled={changingRoom}
-                                            >
-                                                <option value="">-- Select a Room --</option>
+                                            />
+                                            <datalist id="changeRoomNumberList">
                                                 {availableRooms.map(room => (
                                                     <option key={room._id} value={room.roomNumber}>
                                                         Room {room.roomNumber} ({room.occupants.length}/{room.capacity} occupied)
                                                     </option>
                                                 ))}
-                                            </select>
+                                            </datalist>
+                                            <small className="form-text text-muted">Type to search available rooms</small>
                                         </div>
                                     </div>
                                 )}

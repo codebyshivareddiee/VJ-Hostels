@@ -6,6 +6,7 @@ import FoodScheduleViewer from './FoodScheduleViewer';
 import '../../styles/student/Food.css';
 import pastryChef from '../../assets/pastry-chef-animate.svg';
 import OffensiveTextInput, { checkOffensiveContent } from '../common/OffensiveTextInput';
+import './MobileSafeNavbar.css';
 
 
 // --- START: SHARED CONSTANTS AND HELPERS ---
@@ -79,6 +80,7 @@ const BlinkingLight = React.memo(({ color }) => (
 const Food = () => {
     // --- START: STATE ---
     const { user, loading: userLoading } = useCurrentUser();
+    const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
     const [menu, setMenu] = useState(null);
     const [menuLoading, setMenuLoading] = useState(false);
     const [schedule, setSchedule] = useState([]); 
@@ -99,17 +101,16 @@ const Food = () => {
     const [submittedFeedbacks, setSubmittedFeedbacks] = useState({});
     // Store user's feedback details (rating + comment) for each meal
     const [userFeedbackDetails, setUserFeedbackDetails] = useState({});
-    const [showChef, setShowChef] = useState(true);
 
     // --- END: STATE ---
 
 
     // --- START: CORE LOGIC & HANDLERS ---
     useEffect(() => {
-  const timer = setTimeout(() => setShowChef(false), 3000); // show 3 seconds
-  return () => clearTimeout(timer);
-}, []);
-
+        const handleResize = () => setIsMobile(window.innerWidth <= 768);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
 
     useEffect(() => {
         if (!document.getElementById('pulse-light-keyframes')) { 
@@ -460,10 +461,10 @@ const Food = () => {
     // --- START: MAIN RENDER WITH CUSTOM UI STYLE ---
 
     const tabs = [
-        { id: 'menu', text: 'Today\'s Menu', icon: 'bi-calendar-check', isPause: false },
-        { id: 'feedback', text: 'Give Feedback', icon: 'bi-chat-dots', isPause: false },
-        { id: 'schedule', text: 'Weekly Schedule', icon: 'bi-calendar-week', isPause: false },
-        { id: 'pause', text: 'Pause Service', icon: 'bi-slash-circle', isPause: true }
+        { id: 'menu', text: 'Today\'s Menu', icon: 'bi-calendar-check', isPause: false, shortLabel: 'Today' },
+        { id: 'feedback', text: 'Give Feedback', icon: 'bi-chat-dots', isPause: false, shortLabel: 'Feedback' },
+        { id: 'schedule', text: 'Weekly Schedule', icon: 'bi-calendar-week', isPause: false, shortLabel: 'Schedule' },
+        { id: 'pause', text: 'Pause Service', icon: 'bi-slash-circle', isPause: true, shortLabel: 'Pause' }
     ];
     
     const badgeColorMap = {
@@ -541,54 +542,22 @@ const Food = () => {
             </div>
         );
     };
-// 👇 ADD THIS BLOCK RIGHT BEFORE MAIN RETURN
-if (showChef) {
-  return (
-    <div style={{
-      display: 'flex', 
-      flexDirection: 'column',
-      justifyContent: 'center', 
-      alignItems: 'center', 
-      minHeight: '100vh',
-      padding: '1rem',
-      background: '#fff',
-      paddingBottom: '15vh'
-    }}>
-      <img 
-        src={pastryChef} 
-        alt="Chef Animation" 
-        style={{
-          width: '100%',
-          maxWidth: '300px',
-          height: 'auto', 
-          marginBottom: '1rem'
-        }} 
-      />
-      <h3 style={{
-        color: '#4364f7',
-        textAlign: 'center',
-        fontSize: 'clamp(1.2rem, 4vw, 1.5rem)',
-        padding: '0 1rem'
-      }}>
-        Preparing today's delicious menu...
-      </h3>
-    </div>
-  );
-}
     return (
         
-        <div className="food-container">
+        <div className={`food-container ${isMobile ? 'page-content' : ''}`}>
             <div className="food-header">
                 <h2>Hostel Food Menu & Feedback</h2>
                 {user && <p>Welcome, {user.name}! Don't forget to rate your finished meals.</p>}
             </div>
 
-            {/* Tabs (Custom UI) */}
-            <div className="tab-container">
-                <div className="tab-grid">
-                    {tabs.map(renderTabButton)}
+            {/* Tabs (Custom UI) - Desktop Only */}
+            {!isMobile && (
+                <div className="tab-container">
+                    <div className="tab-grid">
+                        {tabs.map(renderTabButton)}
+                    </div>
                 </div>
-            </div>
+            )}
 
             {/* --- Today's Menu Tab --- */}
             {activeTab === 'menu' && (
@@ -842,6 +811,90 @@ if (showChef) {
             
             {/* --- Pause Service Tab --- */}
             {activeTab === 'pause' && <FoodPauseManager />}
+
+            {/* Fixed Bottom Navigation for Mobile */}
+            {isMobile && (
+                <div style={{
+                    position: 'fixed',
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    zIndex: 9999,
+                    padding: '0.5rem',
+                    paddingBottom: 'max(2rem, calc(env(safe-area-inset-bottom) + 1rem))',
+                    paddingTop: '1rem',
+                }}>
+                    <div style={{
+                        position: 'relative',
+                        display: 'flex',
+                        backgroundColor: 'rgba(255, 255, 255, 0.85)',
+                        backdropFilter: 'blur(10px)',
+                        borderRadius: '9999px',
+                        padding: '0.25rem',
+                        width: '85%',
+                        maxWidth: '1100px',
+                        margin: '0 auto',
+                        border: '1px solid rgba(255, 255, 255, 0.08)',
+                        boxShadow: '0 2px 10px rgba(0, 0, 0, 0.15)',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        transition: '0.3s',
+                    }}>
+                        {/* Sliding Active Indicator */}
+                        <div 
+                            style={{
+                                position: 'absolute',
+                                top: '0.25rem',
+                                left: '0.25rem',
+                                width: `calc(${100/4}% - 0.167rem)`,
+                                height: 'calc(100% - 0.5rem)',
+                                backgroundColor: '#667eea',
+                                borderRadius: '9999px',
+                                boxShadow: '0 4px 12px rgba(102, 126, 234, 0.3)',
+                                transform: `translateX(${tabs.findIndex(tab => tab.id === activeTab) * 100}%)`,
+                                transition: 'transform 0.3s ease',
+                                zIndex: 1,
+                                willChange: 'transform'
+                            }}
+                        />
+                        
+                        {tabs.map((tab) => {
+                            const isActive = activeTab === tab.id;
+                            return (
+                                <div
+                                    key={tab.id}
+                                    onClick={() => setActiveTab(tab.id)}
+                                    style={{
+                                        position: 'relative',
+                                        zIndex: 2,
+                                        flex: 1,
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '0.25rem',
+                                        padding: '0.75rem 0.25rem',
+                                        borderRadius: '9999px',
+                                        cursor: 'pointer',
+                                        backgroundColor: 'transparent',
+                                        color: isActive ? '#fff' : '#667eea',
+                                        transition: 'color 0.3s ease',
+                                    }}
+                                >
+                                    <i className={`bi ${tab.icon}`} style={{ fontSize: '1.25rem' }} />
+                                    <span style={{
+                                        fontSize: '0.7rem',
+                                        fontWeight: isActive ? '700' : '600',
+                                        letterSpacing: '0.02em',
+                                    }}>
+                                        {tab.shortLabel}
+                                    </span>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

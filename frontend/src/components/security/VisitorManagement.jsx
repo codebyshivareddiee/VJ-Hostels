@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { X, Search, Shield, Clock, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { X, Search, Shield, Clock, AlertCircle, ChevronDown } from 'lucide-react';
 import { otpAPI, studentAPI, overrideAPI } from '../../securityServices/api';
 import socketService from '../../securityServices/socket';
 import { useAuth } from '../../context/SecurityContext';
@@ -380,8 +380,7 @@ const Guard = () => {
             display: 'flex',
             gap: '8px',
             alignItems: 'center',
-            flexWrap: 'nowrap',
-            overflowX: 'auto'
+            flexWrap: 'nowrap'
           }}>
             <button
               onClick={() => setCurrentView('search')}
@@ -522,10 +521,22 @@ const SearchView = ({
   onRequestOverride, onReset, loading
 }) => {
   const [otpInput, setOtpInput] = useState('');
+  const [groupSizeOpen, setGroupSizeOpen] = useState(false);
+  const groupSizeRef = useRef(null);
 
   useEffect(() => {
     setOtpInput('');
   }, [otpStatus]);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (groupSizeRef.current && !groupSizeRef.current.contains(event.target)) {
+        setGroupSizeOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   return (
     <div>
@@ -535,7 +546,7 @@ const SearchView = ({
 
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))',
         gap: 20
       }}>
         {/* Student Search Card */}
@@ -586,10 +597,12 @@ const SearchView = ({
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
+              gap: 8,
+              flexWrap: 'wrap',
               boxShadow: '0 4px 16px rgba(16, 185, 129, 0.25), inset 0 1px 0 rgba(255,255,255,0.5)'
             }}>
-              <div>
-                <div style={{ fontWeight: 800, color: '#111' }}>{selectedStudent.name}</div>
+              <div style={{ flex: '1', minWidth: 0 }}>
+                <div style={{ fontWeight: 800, color: '#111', wordBreak: 'break-word' }}>{selectedStudent.name}</div>
                 <div style={{ fontSize: 13, color: '#666' }}>Room {selectedStudent.room} • {selectedStudent.rollNumber}</div>
               </div>
               <button onClick={onReset} style={{
@@ -599,7 +612,8 @@ const SearchView = ({
                 borderRadius: 8,
                 color: '#667eea',
                 fontWeight: 700,
-                cursor: 'pointer'
+                cursor: 'pointer',
+                flexShrink: 0
               }}>Change</button>
             </div>
           )}
@@ -642,17 +656,69 @@ const SearchView = ({
             />
           </div>
 
-          <div style={{ marginBottom: 18 }}>
+          <div style={{ marginBottom: 18, position: 'relative' }} ref={groupSizeRef}>
             <label style={labelStyle}>Group Size</label>
-            <select
-              value={visitorData.groupSize}
-              onChange={(e) => setVisitorData({ ...visitorData, groupSize: e.target.value })}
-              style={{ ...inputStyle, padding: '10px 12px' }}
+            <div
+              onClick={() => setGroupSizeOpen(!groupSizeOpen)}
+              style={{
+                ...inputStyle,
+                padding: '10px 12px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                cursor: 'pointer',
+                borderColor: groupSizeOpen ? '#667eea' : '#e6e9f2'
+              }}
             >
-              {[1, 2, 3, 4, 5].map(size => (
-                <option key={size} value={size}>{size} {size === 1 ? 'person' : 'people'}</option>
-              ))}
-            </select>
+              <span>{visitorData.groupSize} {visitorData.groupSize === 1 ? 'person' : 'people'}</span>
+              <ChevronDown size={16} style={{ transform: groupSizeOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }} />
+            </div>
+            {groupSizeOpen && (
+              <div style={{
+                position: 'absolute',
+                bottom: '100%',
+                left: 0,
+                right: 0,
+                marginBottom: '4px',
+                background: 'white',
+                border: '1px solid #e6e9f2',
+                borderRadius: 10,
+                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                zIndex: 1000,
+                maxHeight: '200px',
+                overflowY: 'auto'
+              }}>
+                {[1, 2, 3, 4, 5].map(size => (
+                  <div
+                    key={size}
+                    onClick={() => {
+                      setVisitorData({ ...visitorData, groupSize: size });
+                      setGroupSizeOpen(false);
+                    }}
+                    style={{
+                      padding: '10px 12px',
+                      cursor: 'pointer',
+                      background: visitorData.groupSize === size ? '#f0f4ff' : 'white',
+                      color: visitorData.groupSize === size ? '#667eea' : '#111',
+                      fontWeight: visitorData.groupSize === size ? 700 : 400,
+                      fontSize: 14
+                    }}
+                    onMouseEnter={(e) => {
+                      if (visitorData.groupSize !== size) {
+                        e.currentTarget.style.background = '#f8fafc';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (visitorData.groupSize !== size) {
+                        e.currentTarget.style.background = 'white';
+                      }
+                    }}
+                  >
+                    {size} {size === 1 ? 'person' : 'people'}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* OTP Actions */}
@@ -865,7 +931,7 @@ const VisitsView = ({ activeVisits, onCheckout, onRefresh }) => {
       ) : (
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 320px), 1fr))',
           gap: 18
         }}>
           {activeVisits.map((visit) => (
@@ -939,7 +1005,9 @@ const cardStyle = {
   borderRadius: 12,
   padding: 18,
   border: '1px solid #eef4ff',
-  boxSizing: 'border-box'
+  boxSizing: 'border-box',
+  minWidth: 0,
+  width: '100%'
 };
 
 const cardTitleStyle = {

@@ -80,14 +80,14 @@ const PostComplaint = () => {
     };
 
     return (
-        <div style={{ maxWidth: '500px', margin: '1rem auto', boxShadow: '0 4px 8px rgba(0,0,0,0.1)', padding: '1.5rem', borderRadius: '8px' }}>
+        <div style={{ maxWidth: '500px', margin: '1rem auto', boxShadow: '0 0 20px rgba(0, 0, 0, 0.1)', padding: '1.5rem', borderRadius: '8px', border: '1px solid #e0e0e0', backgroundColor: '#fff', overflow: 'visible' }}>
             <h2 style={{ textAlign: 'center', marginBottom: '1.5rem', fontSize: '1.5rem' }}>Submit a Complaint</h2>
 
             {error && <p style={{ color: 'red' }}>{error}</p>}
 
             <form onSubmit={handleSubmit}>
                 <div className="mb-3">
-                    <label className="form-label">Category</label>
+                    <label className="form-label" style={{ textAlign: 'left', display: 'block' }}>Category</label>
                     <select
                         className="form-control"
                         value={category}
@@ -107,7 +107,7 @@ const PostComplaint = () => {
                 </div>
 
                 <div className="mb-3">
-                    <label className="form-label">Description</label>
+                    <label className="form-label" style={{ textAlign: 'left', display: 'block' }}>Description</label>
                     <textarea
                         className="form-control"
                         value={description}
@@ -119,7 +119,7 @@ const PostComplaint = () => {
                 </div>
 
                 <div className="mb-3">
-                    <label className="form-label">Attach Image (Optional)</label>
+                    <label className="form-label" style={{ textAlign: 'left', display: 'block' }}>Attach Image (Optional)</label>
                     <input
                         type="file"
                         className="form-control"
@@ -145,8 +145,23 @@ const PostComplaint = () => {
 
                 <button
                     type="submit"
-                    className="btn btn-primary w-100"
                     disabled={loading}
+                    style={{
+                        backgroundColor: '#2563eb',
+                        color: 'white',
+                        border: 'none',
+                        padding: '12px 36px',
+                        borderRadius: '9999px',
+                        fontSize: '16px',
+                        fontWeight: '500',
+                        cursor: loading ? 'not-allowed' : 'pointer',
+                        boxShadow: '0 0 20px rgba(0, 0, 0, 0.1)',
+                        transition: 'all 0.3s ease',
+                        width: '100%',
+                        opacity: loading ? 0.7 : 1
+                    }}
+                    onMouseEnter={(e) => !loading && (e.currentTarget.style.backgroundColor = '#1d4ed8')}
+                    onMouseLeave={(e) => !loading && (e.currentTarget.style.backgroundColor = '#2563eb')}
                 >
                     {loading ? 'Submitting...' : 'Submit Complaint'}
                 </button>

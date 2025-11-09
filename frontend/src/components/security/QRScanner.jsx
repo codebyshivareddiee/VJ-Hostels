@@ -489,31 +489,6 @@ const QRScanner = () => {
         )}
         
         <div style={mobileOptimizedContainerStyle}>
-            <div style={{ marginBottom: '2rem', textAlign: 'center' }}>
-                <h1 style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
-                    <QrCode size={32} style={{ verticalAlign: 'middle', marginRight: '10px' }} />
-                    Smart QR Scanner
-                </h1>
-                <p style={{ color: '#666', fontSize: '1rem' }}>
-                    Scan any outpass QR code - system automatically detects check-in or check-out
-                </p>
-                {/* Detected Action Indicator */}
-                {detectedAction && (
-                    <div style={{
-                        marginTop: '1rem',
-                        padding: '8px 16px',
-                        backgroundColor: detectedAction === 'out' ? '#e8f5e9' : '#e3f2fd',
-                        color: detectedAction === 'out' ? '#2e7d32' : '#1565c0',
-                        borderRadius: '20px',
-                        display: 'inline-block',
-                        fontWeight: 'bold',
-                        fontSize: '0.9rem'
-                    }}>
-                        🎯 Detected: {detectedAction === 'out' ? 'Check-Out (Student Leaving)' : 'Check-In (Student Returning)'}
-                    </div>
-                )}
-            </div>
-
             {/* Main Content Grid - Using a CSS class for responsiveness */}
             <div 
                 // A responsive class that switches from 2-column to 1-column on small screens
@@ -803,6 +778,31 @@ const QRScanner = () => {
                         </div>
                     )}
                 </div>
+            </div>
+
+            <div style={{ marginTop: '2rem', textAlign: 'center' }}>
+                <h1 style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
+                    <QrCode size={32} style={{ verticalAlign: 'middle', marginRight: '10px' }} />
+                    Smart QR Scanner
+                </h1>
+                <p style={{ color: '#666', fontSize: '1rem' }}>
+                    Scan any outpass QR code - system automatically detects check-in or check-out
+                </p>
+                {/* Detected Action Indicator */}
+                {detectedAction && (
+                    <div style={{
+                        marginTop: '1rem',
+                        padding: '8px 16px',
+                        backgroundColor: detectedAction === 'out' ? '#e8f5e9' : '#e3f2fd',
+                        color: detectedAction === 'out' ? '#2e7d32' : '#1565c0',
+                        borderRadius: '20px',
+                        display: 'inline-block',
+                        fontWeight: 'bold',
+                        fontSize: '0.9rem'
+                    }}>
+                        🎯 Detected: {detectedAction === 'out' ? 'Check-Out (Student Leaving)' : 'Check-In (Student Returning)'}
+                    </div>
+                )}
             </div>
             
             {/* Simple CSS animation class definition for the Loader icon */}

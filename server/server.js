@@ -12,6 +12,8 @@ require('./config/passport');
 
 const authRoutes = require('./routes/authRoutes');
 const securityRoutes = require('./routes/securityRoutes');
+const roomSyncService = require('./services/roomSyncService');
+const roomChangeStreamWatcher = require('./services/roomChangeStreamWatcher');
 
 const adminApp = require('./APIs/adminAPI');
 const studentApp = require('./APIs/studentAPI');
@@ -156,8 +158,40 @@ server.listen(port, () => {
 
     // Try to connect to MongoDB after server is started
     mongoose.connect(process.env.DBURL)
-    .then(() => {
+    .then(async () => {
         console.log("MongoDB connection successful!");
+        
+        // ✅ AUTO-SYNC: Sync all rooms on server startup
+        // This ensures rooms are always in sync, even after direct DB changes
+        try {
+            console.log('🔄 Running room sync on server startup...');
+            const syncResult = await roomSyncService.syncStudentsToRooms();
+            console.log(`✅ Startup sync complete: ${syncResult.roomsUpdated} rooms updated, ${syncResult.studentsProcessed} students processed`);
+        } catch (syncError) {
+            console.error('⚠️  Warning: Failed to sync rooms on startup:', syncError);
+            // Don't crash server if sync fails
+        }
+        
+        // ✅ REAL-TIME SYNC: Start MongoDB Change Stream watcher
+        // This watches the Student collection and automatically syncs rooms on ANY database change
+        // Works for: API changes, MongoDB Compass edits, bulk imports, etc.
+        try {
+            console.log('🚀 Starting real-time room sync watcher...');
+            roomChangeStreamWatcher.startRoomChangeStreamWatcher();
+            console.log('✅ Real-time sync active - rooms will sync automatically on any student data change!');
+        } catch (watcherError) {
+            console.error('⚠️  Warning: Failed to start change stream watcher:', watcherError);
+            console.log('💡 Falling back to scheduled sync only');
+        }
+        
+        // ✅ SCHEDULED SYNC: Run daily at 2 AM as backup (in case change stream fails)
+        try {
+            const { scheduleRoomSync } = require('./jobs/roomSyncScheduler');
+            scheduleRoomSync();
+        } catch (scheduleError) {
+            console.error('⚠️  Warning: Failed to schedule room sync job:', scheduleError);
+        }
+            
             // Start scheduled jobs that depend on DB
             // try {
             //     const { scheduleDailyCleanup } = require('./jobs/foodPauseCleanup');
@@ -200,3 +234,48 @@ app.use((err,req,res,next)=>{
     console.log("err object in express error handler :",err)
     res.send({message:err.message})
 })
+
+// Graceful shutdown - Close change stream when server stops
+process.on('SIGINT', async () => {
+    console.log('\n🛑 Shutting down gracefully...');
+    
+    try {
+        // Stop change stream watcher
+        await roomChangeStreamWatcher.stopRoomChangeStreamWatcher();
+        
+        // Close MongoDB connection
+        await mongoose.connection.close();
+        console.log('✅ MongoDB connection closed');
+        
+        // Close HTTP server
+        server.close(() => {
+            console.log('✅ HTTP server closed');
+            process.exit(0);
+        });
+        
+        // Force close after 10 seconds
+        setTimeout(() => {
+            console.error('⚠️  Forced shutdown after timeout');
+            process.exit(1);
+        }, 10000);
+    } catch (error) {
+        console.error('❌ Error during shutdown:', error);
+        process.exit(1);
+    }
+});
+
+process.on('SIGTERM', async () => {
+    console.log('\n🛑 SIGTERM received, shutting down gracefully...');
+    
+    try {
+        await roomChangeStreamWatcher.stopRoomChangeStreamWatcher();
+        await mongoose.connection.close();
+        server.close(() => {
+            console.log('✅ Server closed');
+            process.exit(0);
+        });
+    } catch (error) {
+        console.error('❌ Error during shutdown:', error);
+        process.exit(1);
+    }
+});

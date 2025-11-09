@@ -27,7 +27,7 @@ const EditStudentModal = ({ show, onClose, student, onStudentUpdated }) => {
                 phoneNumber: student.phoneNumber || '',
                 email: student.email || '',
                 parentMobileNumber: student.parentMobileNumber || '',
-                roomNumber: student.roomNumber || ''
+                roomNumber: student.room || ''  // Fixed: use student.room instead of student.roomNumber
             });
             fetchAvailableRooms();
         }
@@ -44,7 +44,7 @@ const EditStudentModal = ({ show, onClose, student, onStudentUpdated }) => {
             // Filter rooms that have space or include the current student's room
             const rooms = response.data.filter(room => 
                 room.occupants.length < room.capacity || 
-                room.roomNumber === student?.roomNumber
+                room.roomNumber === student?.room  // Fixed: use student.room instead of student.roomNumber
             );
             
             setAvailableRooms(rooms);
@@ -201,20 +201,26 @@ const EditStudentModal = ({ show, onClose, student, onStudentUpdated }) => {
                                 </div>
                                 <div className="col-md-6">
                                     <label htmlFor="roomNumber" className="form-label">Room Number</label>
-                                    <select
-                                        className="form-select"
+                                    <input
+                                        type="text"
+                                        className="form-control"
                                         id="roomNumber"
                                         name="roomNumber"
                                         value={formData.roomNumber}
                                         onChange={handleInputChange}
-                                    >
+                                        list="editRoomNumberList"
+                                        placeholder="Type room number or leave empty..."
+                                        autoComplete="off"
+                                    />
+                                    <datalist id="editRoomNumberList">
                                         <option value="">No Room (Unassigned)</option>
                                         {availableRooms.map(room => (
                                             <option key={room._id} value={room.roomNumber}>
                                                 Room {room.roomNumber} ({room.occupants.length}/{room.capacity} occupied)
                                             </option>
                                         ))}
-                                    </select>
+                                    </datalist>
+                                    <small className="form-text text-muted">Type to search or leave empty to unassign</small>
                                 </div>
                             </div>
                             <div className="d-flex justify-content-end mt-4">

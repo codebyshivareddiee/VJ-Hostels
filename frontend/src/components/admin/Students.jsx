@@ -58,7 +58,25 @@ const Students = () => {
                     Authorization: `Bearer ${token}`
                 }
             });
-            setStudents(response.data);
+            
+            // Sort students by room number (numeric sort)
+            const sortedStudents = response.data.sort((a, b) => {
+                const roomA = a.room || '';
+                const roomB = b.room || '';
+                
+                // If one doesn't have a room, put it at the end
+                if (!roomA && roomB) return 1;
+                if (roomA && !roomB) return -1;
+                if (!roomA && !roomB) return 0;
+                
+                // Convert room numbers to numbers for proper numeric sorting
+                const numA = parseInt(roomA) || 0;
+                const numB = parseInt(roomB) || 0;
+                
+                return numA - numB;
+            });
+            
+            setStudents(sortedStudents);
             setError('');
         } catch (err) {
             setError('Failed to load students');
@@ -100,8 +118,16 @@ const Students = () => {
                 }
             });
 
-            // Filter rooms that have space
-            const rooms = response.data.filter(room => room.occupants.length < room.capacity);
+            // Filter rooms that have space and sort by room number
+            const rooms = response.data
+                .filter(room => room.occupants.length < room.capacity)
+                .sort((a, b) => {
+                    // Convert room numbers to numbers for proper sorting
+                    const numA = parseInt(a.roomNumber) || 0;
+                    const numB = parseInt(b.roomNumber) || 0;
+                    return numA - numB;
+                });
+            
             setAvailableRooms(rooms);
         } catch (err) {
             console.error('Failed to fetch available rooms', err);
@@ -157,14 +183,23 @@ const Students = () => {
         }
     };
 
-    const filteredStudents = students.filter(student =>
-        student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        student.rollNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        student.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (student.branch && student.branch.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (student.roomNumber && student.roomNumber.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (student.phoneNumber && student.phoneNumber.includes(searchTerm))
-    );
+    const filteredStudents = students
+        .filter(student =>
+            student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            student.rollNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            student.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (student.branch && student.branch.toLowerCase().includes(searchTerm.toLowerCase())) ||
+            (student.room && student.room.toLowerCase().includes(searchTerm.toLowerCase())) ||
+            (student.phoneNumber && student.phoneNumber.includes(searchTerm))
+        )
+        .sort((a, b) => {
+            // Sort by room number
+            const roomA = a.room || '';
+            const roomB = b.room || '';
+            const numA = parseInt(roomA) || 999999; // Put students without rooms at the end
+            const numB = parseInt(roomB) || 999999;
+            return numA - numB;
+        });
 
     return (
         <div>
@@ -301,21 +336,25 @@ const Students = () => {
                                 </div>
                                 <div className="col-md-3">
                                     <label htmlFor="roomNumber" className="form-label">Room Number (Optional)</label>
-                                    <select
-                                        className="form-select"
+                                    <input
+                                        type="text"
+                                        className="form-control"
                                         id="roomNumber"
                                         name="roomNumber"
                                         value={formData.roomNumber}
                                         onChange={handleInputChange}
-                                    >
-                                        <option value="">Auto-allocate</option>
+                                        list="roomNumberList"
+                                        placeholder="Type or select room..."
+                                        autoComplete="off"
+                                    />
+                                    <datalist id="roomNumberList">
                                         {availableRooms.map(room => (
                                             <option key={room._id} value={room.roomNumber}>
                                                 Room {room.roomNumber} ({room.occupants.length}/{room.capacity} occupied)
                                             </option>
                                         ))}
-                                    </select>
-                                    <small className="form-text text-muted">Leave empty for auto-allocation</small>
+                                    </datalist>
+                                    <small className="form-text text-muted">Type room number or leave empty for auto-allocation</small>
                                 </div>
                                 <div className="col-md-3">
                                     <label htmlFor="password" className="form-label">Password</label>
@@ -431,7 +470,7 @@ const Students = () => {
                                             <td>{student.rollNumber}</td>
                                             <td>{student.branch}</td>
                                             <td>{student.year}</td>
-                                            <td>{student.roomNumber}</td>
+                                            <td>{student.room}</td>
                                             <td>{student.email}</td>
                                             <td>{student.phoneNumber}</td>
                                             <td>

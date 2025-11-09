@@ -4,13 +4,9 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import 'bootstrap/dist/css/bootstrap.min.css';
 
-const AnnouncementBanner = ({ onDismiss }) => {
-  const navigate = useNavigate();
+export const useAnnouncements = () => {
   const [announcements, setAnnouncements] = useState([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [dismissed, setDismissed] = useState(false);
-  const [animating, setAnimating] = useState(false);
 
   useEffect(() => {
     const fetchAnnouncements = async () => {
@@ -33,13 +29,26 @@ const AnnouncementBanner = ({ onDismiss }) => {
     fetchAnnouncements();
   }, []);
 
+  return { announcements, loading, hasAnnouncements: announcements.length > 0 };
+};
+
+const AnnouncementBanner = ({ onDismiss }) => {
+  const navigate = useNavigate();
+  const { announcements, loading } = useAnnouncements();
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [dismissed, setDismissed] = useState(false);
+  const [animating, setAnimating] = useState(false);
+  const [touchStart, setTouchStart] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragOffset, setDragOffset] = useState(0);
+
   useEffect(() => {
-    if (announcements.length <= 1) return;
+    if (announcements.length <= 1 || isDragging) return;
     const interval = setInterval(() => {
       handleNext();
     }, 5000);
     return () => clearInterval(interval);
-  }, [announcements, currentIndex]);
+  }, [announcements, currentIndex, isDragging]);
 
   const handleNext = () => {
     if (animating) return;
@@ -59,6 +68,38 @@ const AnnouncementBanner = ({ onDismiss }) => {
     }, 600);
   };
 
+  const handleTouchStart = (e) => {
+    setTouchStart(e.targetTouches[0].clientX);
+    setIsDragging(true);
+  };
+
+  const handleTouchMove = (e) => {
+    if (!isDragging) return;
+    const currentTouch = e.targetTouches[0].clientX;
+    const diff = currentTouch - touchStart;
+    setDragOffset(diff);
+  };
+
+  const handleTouchEnd = () => {
+    setIsDragging(false);
+    const threshold = 50;
+    
+    if (Math.abs(dragOffset) > threshold && announcements.length > 1) {
+      if (dragOffset < 0) {
+        handleNext();
+      } else {
+        if (animating) return;
+        setAnimating(true);
+        setTimeout(() => {
+          setCurrentIndex((prev) => (prev - 1 + announcements.length) % announcements.length);
+          setAnimating(false);
+        }, 300);
+      }
+    }
+    setDragOffset(0);
+    setTouchStart(0);
+  };
+
   const handleDismiss = (e) => {
     e.stopPropagation();
     setDismissed(true);
@@ -75,7 +116,10 @@ const AnnouncementBanner = ({ onDismiss }) => {
 
   return (
     <div
-      onClick={handleAnnouncementClick}
+      onClick={!isDragging ? handleAnnouncementClick : undefined}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
       className="announcement-banner"
       style={{
         width: '100%',
@@ -84,15 +128,14 @@ const AnnouncementBanner = ({ onDismiss }) => {
         padding: '0.5rem 0.8rem',
         cursor: 'pointer',
         overflow: 'hidden',
-        transition: 'all 0.3s ease',
         position: 'relative',
+        touchAction: 'pan-y',
       }}
     >
       <div
         style={{
-          transform: animating ? 'translateX(-25px)' : 'translateX(0)',
-          opacity: animating ? 0 : 1,
-          transition: 'all 0.6s ease',
+          transform: `translateX(${dragOffset}px)`,
+          transition: isDragging ? 'none' : 'transform 0.3s ease',
         }}
       >
         <div

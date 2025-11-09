@@ -114,7 +114,6 @@ const styles = {
         borderRadius: '8px',
         boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
         overflow: 'hidden',
-        transition: 'transform 0.3s, box-shadow 0.3s',
         backgroundColor: '#fff',
     },
     complaintHeader: {
@@ -158,7 +157,6 @@ const styles = {
         objectFit: 'cover',
         borderRadius: '4px',
         cursor: 'pointer',
-        transition: 'transform 0.2s',
         border: '1px solid #dee2e6',
     },
     complaintFooter: {

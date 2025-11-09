@@ -99,7 +99,7 @@ const StudentDetailsModal = ({ show, onClose, rollNumber, onStudentUpdated }) =>
                                     <div className="row mb-2">
                                         <div className="col-md-6">
                                             <h6 className="fw-bold">Room Number:</h6>
-                                            <p>{student.roomNumber}</p>
+                                            <p>{student.room || 'Not assigned'}</p>
                                         </div>
                                         <div className="col-md-6">
                                             <h6 className="fw-bold">Email:</h6>

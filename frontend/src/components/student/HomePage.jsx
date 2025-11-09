@@ -4,12 +4,13 @@ import img2 from "../../assets/2.jpg";
 import img3 from "../../assets/3.jpg";
 import img4 from "../../assets/4.png";
 import logo from "../../assets/vnrvjiet-logo.png";
-import AnnouncementBanner from "./AnnouncementBanner";
+import AnnouncementBanner, { useAnnouncements } from "./AnnouncementBanner";
 import "../../styles/homepage.css";
 
 const HomePage = () => {
   const [isMobile, setIsMobile] = React.useState(window.innerWidth <= 768);
   const [bannerDismissed, setBannerDismissed] = React.useState(false);
+  const { hasAnnouncements } = useAnnouncements();
 
   React.useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 768);
@@ -20,7 +21,7 @@ const HomePage = () => {
   return (
     <div className="home-page" style={{ margin: 0, padding: 0 }}>
       {/* Mobile Announcement Banner - Below Navbar */}
-      {isMobile && !bannerDismissed && (
+      {isMobile && !bannerDismissed && hasAnnouncements && (
         <div style={{ 
           position: 'fixed', 
           top: '90px', 
