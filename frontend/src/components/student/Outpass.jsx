@@ -5,11 +5,8 @@ import { useNavigate } from 'react-router-dom';
 import useCurrentUser from '../../hooks/student/useCurrentUser';
 import { Calendar, Clock, ChevronLeft, ChevronRight, X, AlertTriangle } from 'lucide-react';
 import './OutpassDateTimePicker.css';
-<<<<<<< HEAD
 import { toast } from 'react-hot-toast';
-=======
 import { checkOffensiveContent } from '../common/OffensiveTextInput';
->>>>>>> a876adb3d845f0620f6e8f01ff9c5fe50a5a5239
 
 // Modern DateTime Picker Component
 function DateTimePicker({ selectedDateTime, onConfirm, onClose, minDate }) {
@@ -853,22 +850,12 @@ function Outpass() {
             setOffensiveWarning(null);
 
             if (!user?.phoneNumber || !user?.parentMobileNumber) {
-<<<<<<< HEAD
                 toast.error('Phone numbers are required. Please update your profile.');
-=======
-                alert('Phone numbers are required. Please update your profile.');
-                setIsSubmitting(false);
->>>>>>> a876adb3d845f0620f6e8f01ff9c5fe50a5a5239
                 return;
             }
 
             if (!data.inTime) {
-<<<<<<< HEAD
                 toast.error('Please select an in time.');
-=======
-                alert('Please select an in time.');
-                setIsSubmitting(false);
->>>>>>> a876adb3d845f0620f6e8f01ff9c5fe50a5a5239
                 return;
             }
 
@@ -876,12 +863,7 @@ function Outpass() {
             const inDateTime = new Date(data.inTime);
             
             if (inDateTime <= outDateTime) {
-<<<<<<< HEAD
                 toast.error('In time must be after out time.');
-=======
-                alert('In time must be after out time.');
-                setIsSubmitting(false);
->>>>>>> a876adb3d845f0620f6e8f01ff9c5fe50a5a5239
                 return;
             }
 
@@ -928,12 +910,7 @@ function Outpass() {
             window.location.reload();
         } catch (error) {
             console.error('Error:', error);
-<<<<<<< HEAD
             toast.error(error.response?.data?.message || 'Failed to submit outpass request');
-=======
-            alert(error.response?.data?.message || 'Failed to submit outpass request');
-            setIsSubmitting(false);
->>>>>>> a876adb3d845f0620f6e8f01ff9c5fe50a5a5239
         }
     };
 
