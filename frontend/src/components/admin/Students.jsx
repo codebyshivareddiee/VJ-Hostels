@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { toast } from 'react-hot-toast';
 import axios from 'axios';
 import { useAdmin } from '../../context/AdminContext';
 import StudentDetailsModal from './StudentDetailsModal';
@@ -100,7 +101,7 @@ const Students = () => {
                     }
                 }
             );
-            alert(response.data.message);
+                toast.success(response.data.message);
             fetchStudents();
         } catch (err) {
             setError('Failed to deactivate student');

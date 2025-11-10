@@ -147,21 +147,17 @@ const EditStudentModal = ({ show, onClose, student, onStudentUpdated }) => {
                                     />
                                 </div>
                                 <div className="col-md-4">
-                                    <label htmlFor="year" className="form-label">Year</label>
-                                    <select
-                                        className="form-select"
+                                    <label htmlFor="year" className="form-label">Batch Year</label>
+                                    <input
+                                        type="text"
+                                        className="form-control"
                                         id="year"
                                         name="year"
                                         value={formData.year}
                                         onChange={handleInputChange}
-                                        required
-                                    >
-                                        <option value="">Select</option>
-                                        <option value="1">1</option>
-                                        <option value="2">2</option>
-                                        <option value="3">3</option>
-                                        <option value="4">4</option>
-                                    </select>
+                                        placeholder="e.g. 2024-28"
+                                    />
+                                    <small className="form-text text-muted">Enter batch year (or leave empty to unset)</small>
                                 </div>
                                 <div className="col-md-4">
                                     <label htmlFor="phoneNumber" className="form-label">Phone Number</label>

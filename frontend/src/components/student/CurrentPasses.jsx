@@ -5,6 +5,7 @@ import { Download, Clock, Calendar, Phone, User, FileText, MapPin } from 'lucide
 import useCurrentUser from '../../hooks/student/useCurrentUser';
 import { generateOutpassPDF } from '../../utils/outpassPDF';
 import ErrorBoundary from './ErrorBoundary';
+import { toast } from 'react-hot-toast';
 
 const CurrentPasses = () => {
     const { user, loading: userLoading } = useCurrentUser();
@@ -64,9 +65,9 @@ const CurrentPasses = () => {
         try {
             generateOutpassPDF(pass);
         } catch (error) {
-            console.error('Error generating PDF:', error);
-            alert('Failed to generate PDF. Please try again.');
-        }
+                console.error('Error generating PDF:', error);
+                toast.error('Failed to generate PDF. Please try again.');
+            }
     };
 
     const handleRegenerateQR = async (passId) => {
@@ -80,7 +81,7 @@ const CurrentPasses = () => {
                 `${import.meta.env.VITE_SERVER_URL}/outpass-api/regenerate-qr/${passId}`
             );
 
-            alert(response.data.message);
+            toast.success(response.data.message);
 
             // Refresh the passes list
             const updatedResponse = await axios.get(
@@ -94,7 +95,7 @@ const CurrentPasses = () => {
             setCurrentPasses(activePasses);
         } catch (error) {
             console.error('Error regenerating QR code:', error);
-            alert(error.response?.data?.message || 'Failed to regenerate QR code. Please try again.');
+            toast.error(error.response?.data?.message || 'Failed to regenerate QR code. Please try again.');
         } finally {
             setRegenerating(null);
         }

@@ -10,6 +10,7 @@ import os
 import sys
 from dotenv import load_dotenv
 from datetime import datetime
+from bson.objectid import ObjectId
 import json
 
 # Load environment variables
@@ -30,6 +31,11 @@ def connect_to_db():
     except Exception as e:
         print(f"Error connecting to MongoDB: {e}")
         sys.exit(1)
+
+# Configuration: set batch years and detection prefix
+YEAR = "2022-26"          # default year for normal rolls
+YEAR_LE = "2023-26"     # year for lateral entry (LE) rolls
+LE_PREFIX = "23"           # if rollNumber starts with this, consider it LE and assign YEAR_LE
 
 def read_excel_file(file_path):
     """Read Excel file and return DataFrame, handling merged headers"""
@@ -103,11 +109,27 @@ def create_student_document(row):
         branch = get_field('BRANCH', default="")
         remarks = get_field('REMARKS', default="")
         
-        # Handle room - convert to None if empty string
-        room = room if room and room != "" else None
+        # Handle room - convert to None if empty string and normalize (remove /1, /2 suffixes)
+        if room and room != "":
+            try:
+                # remove anything after a slash and trim
+                room = str(room).split('/')[0].strip()
+                if room == "":
+                    room = None
+            except Exception:
+                room = None
+        else:
+            room = None
 
         # Generate email from roll number
         email = f"{roll_number}@vnrvjiet.in".lower() if roll_number else ""
+
+        # Determine year based on roll prefix (LE vs normal)
+        roll_prefix = (roll_number or "").strip()
+        if roll_prefix.startswith(LE_PREFIX):
+            batch_year = YEAR_LE
+        else:
+            batch_year = YEAR
 
         # Create student document according to StudentModel schema
         # All fields default to empty strings, empty arrays, or None as appropriate
@@ -124,6 +146,7 @@ def create_student_document(row):
             "role": "student",
             "is_active": True,
             "room": room,  # None if empty, string if has value
+            "year": str(batch_year),
             "fcmToken": None,
             "backupContacts": [],
             "whitelist": [],
@@ -202,7 +225,25 @@ def insert_students(db, students_list):
         
         # Insert many documents
         result = collection.insert_many(students_list, ordered=False)
-        
+
+        # After insertion, ensure Room documents are updated to include occupants
+        rooms_col = db['rooms']
+        for idx, inserted_id in enumerate(result.inserted_ids):
+            try:
+                stud = students_list[idx]
+                room_num = stud.get('room')
+                if room_num and room_num != "":
+                    rooms_col.update_one(
+                        {"roomNumber": room_num},
+                        {
+                            "$addToSet": {"occupants": inserted_id, "allocatedStudents": inserted_id},
+                            "$setOnInsert": {"capacity": 3}
+                        },
+                        upsert=True
+                    )
+            except Exception as e:
+                print(f"⚠ Warning: could not update room for inserted student {inserted_id}: {e}")
+
         print(f"\n✓ Successfully inserted {len(result.inserted_ids)} students")
         return len(result.inserted_ids)
 
@@ -224,17 +265,47 @@ def update_duplicate_students(db, students_list):
 
     try:
         collection = db['students']
+        rooms_col = db['rooms']
         updated_count = 0
 
         for student in students_list:
             # Use rollNumber and email as unique identifiers
-            result = collection.update_one(
-                {"rollNumber": student["rollNumber"]},
-                {"$set": student},
-                upsert=True
-            )
-            if result.upserted_id or result.modified_count > 0:
-                updated_count += 1
+            try:
+                result = collection.update_one(
+                    {"rollNumber": student["rollNumber"]},
+                    {"$set": student},
+                    upsert=True
+                )
+
+                # Determine the student's ObjectId (newly upserted or existing)
+                student_id = None
+                if result.upserted_id:
+                    student_id = result.upserted_id
+                else:
+                    # fetch existing document _id
+                    existing = collection.find_one({"rollNumber": student["rollNumber"]}, {"_id": 1})
+                    if existing:
+                        student_id = existing.get('_id')
+
+                # If room is provided, ensure room document includes this student
+                room_num = student.get('room')
+                if student_id and room_num and room_num != "":
+                    try:
+                        rooms_col.update_one(
+                            {"roomNumber": room_num},
+                            {
+                                "$addToSet": {"occupants": student_id, "allocatedStudents": student_id},
+                                "$setOnInsert": {"capacity": 3}
+                            },
+                            upsert=True
+                        )
+                    except Exception as e:
+                        print(f"⚠ Warning: could not update room {room_num} for student {student.get('rollNumber')}: {e}")
+
+                if result.upserted_id or result.modified_count > 0:
+                    updated_count += 1
+            except Exception as e:
+                print(f"✗ Error processing student {student.get('rollNumber')}: {e}")
 
         print(f"\n✓ Successfully processed {updated_count} students (inserted new or updated existing)")
         return updated_count
@@ -282,8 +353,10 @@ def main():
     print("Student Data Import Script")
     print("=" * 60)
 
-    # File path - you can modify this or accept as command line argument
-    excel_file = "../seedData/vnrboys-2.xlsx"  # Change this to your Excel file path
+    # Dynamically locate the Excel file inside ../seedData/
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))  # path to /server/scripts
+    excel_file = os.path.join(BASE_DIR, "../seedData/vnrboys-4.xlsx")
+    excel_file = os.path.abspath(excel_file)
     
     # Check if file path provided as command line argument
     if len(sys.argv) > 1:

@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import useCurrentUser from '../../hooks/student/useCurrentUser';
 import { Calendar, Clock, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import './OutpassDateTimePicker.css';
+import { toast } from 'react-hot-toast';
 
 // Modern DateTime Picker Component
 function DateTimePicker({ selectedDateTime, onConfirm, onClose, minDate }) {
@@ -69,7 +70,7 @@ function DateTimePicker({ selectedDateTime, onConfirm, onClose, minDate }) {
             newDate.setMinutes(selectedMinute);
             
             if (minDate && newDate < minDate) {
-                alert('Please select a date and time after the out time.');
+                toast.error('Please select a date and time after the out time.');
                 return;
             }
             
@@ -92,7 +93,7 @@ function DateTimePicker({ selectedDateTime, onConfirm, onClose, minDate }) {
         newDate.setHours(actualHour);
         
         if (minDate && newDate < minDate) {
-            alert('Please select a time after the out time.');
+            toast.error('Please select a time after the out time.');
             return;
         }
         
@@ -105,7 +106,7 @@ function DateTimePicker({ selectedDateTime, onConfirm, onClose, minDate }) {
         newDate.setMinutes(minute);
         
         if (minDate && newDate < minDate) {
-            alert('Please select a time after the out time.');
+            toast.error('Please select a time after the out time.');
             return;
         }
         
@@ -123,7 +124,7 @@ function DateTimePicker({ selectedDateTime, onConfirm, onClose, minDate }) {
         }
         
         if (minDate && newDate < minDate) {
-            alert('Please select a time after the out time.');
+            toast.error('Please select a time after the out time.');
             return;
         }
         
@@ -132,7 +133,7 @@ function DateTimePicker({ selectedDateTime, onConfirm, onClose, minDate }) {
 
     const handleConfirm = () => {
         if (minDate && currentDate < minDate) {
-            alert('In time must be after out time.');
+            toast.error('In time must be after out time.');
             return;
         }
         onConfirm(currentDate);
@@ -843,12 +844,12 @@ function Outpass() {
     const onSubmit = async (data) => {
         try {
             if (!user?.phoneNumber || !user?.parentMobileNumber) {
-                alert('Phone numbers are required. Please update your profile.');
+                toast.error('Phone numbers are required. Please update your profile.');
                 return;
             }
 
             if (!data.inTime) {
-                alert('Please select an in time.');
+                toast.error('Please select an in time.');
                 return;
             }
 
@@ -856,7 +857,7 @@ function Outpass() {
             const inDateTime = new Date(data.inTime);
             
             if (inDateTime <= outDateTime) {
-                alert('In time must be after out time.');
+                toast.error('In time must be after out time.');
                 return;
             }
 
@@ -879,7 +880,7 @@ function Outpass() {
             window.location.reload();
         } catch (error) {
             console.error('Error:', error);
-            alert(error.response?.data?.message || 'Failed to submit outpass request');
+            toast.error(error.response?.data?.message || 'Failed to submit outpass request');
         }
     };
 

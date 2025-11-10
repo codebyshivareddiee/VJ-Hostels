@@ -399,6 +399,21 @@ adminApp.get('/all-announcements', verifyAdmin, expressAsyncHandler(async (req, 
     }
 }))
 
+// Get viewers for a specific announcement (names and roll numbers)
+adminApp.get('/announcement/:id/viewers', verifyAdmin, expressAsyncHandler(async (req, res) => {
+    try {
+        const { id } = req.params;
+        const announcement = await Announcement.findById(id).populate('seen', 'name rollNumber');
+        if (!announcement) return res.status(404).json({ message: 'Announcement not found' });
+
+        // Return only the populated student info
+        const viewers = Array.isArray(announcement.seen) ? announcement.seen.map(s => ({ id: s._id, name: s.name, rollNumber: s.rollNumber })) : [];
+        res.status(200).json({ viewers });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+}));
+
 // to read today's announcements
 adminApp.get('/announcements', verifyAdmin, expressAsyncHandler(async (req, res) => {
     try {
@@ -642,13 +657,14 @@ adminApp.put('/update-student/:id', verifyAdmin, expressAsyncHandler(async (req,
         const oldRoomNumber = student.room; // Store for auto-sync
         const roomChanged = roomNumber !== student.room;
 
-        // Update student details
-        student.name = name || student.name;
-        student.branch = branch || student.branch;
-        student.phoneNumber = phoneNumber || student.phoneNumber;
-        student.email = email || student.email;
-        student.parentMobileNumber = parentMobileNumber || student.parentMobileNumber;
-        student.room = roomNumber !== undefined ? roomNumber : student.room;
+    // Update student details
+    student.name = name || student.name;
+    student.branch = branch || student.branch;
+    student.year = year !== undefined ? year : student.year; // allow updating batch/year
+    student.phoneNumber = phoneNumber || student.phoneNumber;
+    student.email = email || student.email;
+    student.parentMobileNumber = parentMobileNumber || student.parentMobileNumber;
+    student.room = roomNumber !== undefined ? roomNumber : student.room;
 
         await student.save();
 
@@ -671,6 +687,21 @@ adminApp.put('/update-student/:id', verifyAdmin, expressAsyncHandler(async (req,
             student
         });
     } catch (error) {
+        console.error('Error updating student:', error);
+
+        // Handle duplicate key (unique) errors gracefully
+        if (error.name === 'MongoServerError' && error.code === 11000) {
+            // extract the duplicated field
+            const field = Object.keys(error.keyValue || {})[0];
+            return res.status(400).json({ message: `Duplicate value for field: ${field}` });
+        }
+
+        // Handle Mongoose validation errors
+        if (error.name === 'ValidationError') {
+            const messages = Object.values(error.errors).map(e => e.message).join('; ');
+            return res.status(400).json({ message: messages });
+        }
+
         res.status(500).json({ error: error.message });
     }
 }));

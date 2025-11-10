@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 import axios from 'axios';
 import { QrCode, CheckCircle, XCircle, AlertCircle, User, Calendar, Clock, Loader } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 import '../../styles/qr-scanner.css';
 
 const QRScanner = () => {
@@ -150,9 +151,9 @@ const QRScanner = () => {
             const errorMsg = err.response?.data?.message || `Failed to ${detectedAction === 'out' ? 'check out' : 'check in'} student`;
             
             if (err.response?.data?.requiresRegeneration) {
-                alert(`❌ ${errorMsg}\n\nThe student must regenerate their QR code as "Late" from their current passes page.`);
+                toast.error(`❌ ${errorMsg}\n\nThe student must regenerate their QR code as "Late" from their current passes page.`);
             } else {
-                alert(`❌ ${errorMsg}`);
+                toast.error(`❌ ${errorMsg}`);
             }
             
             resetScanner();

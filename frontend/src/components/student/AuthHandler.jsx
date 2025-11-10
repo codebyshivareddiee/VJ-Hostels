@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { toast } from 'react-hot-toast';
 import { useLocation, useNavigate } from "react-router-dom";
 
 const AuthHandler = () => {
@@ -14,7 +15,7 @@ const AuthHandler = () => {
 
     if (error) {
       console.error("OAuth error:", error);
-      alert(`Login failed: ${error}. Please try again.`);
+      toast.error(`Login failed: ${error}. Please try again.`);
       navigate("/login", { replace: true });
       return;
     }
@@ -26,7 +27,7 @@ const AuthHandler = () => {
       navigate("/home", { replace: true });
     } else {
       console.error("No token received from OAuth callback");
-      alert("No authentication token received. Please try again.");
+      toast.error("No authentication token received. Please try again.");
       navigate("/login", { replace: true });
     }
   }, [location, navigate]);

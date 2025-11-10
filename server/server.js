@@ -33,7 +33,7 @@ setupSEOMiddleware(app);
 
 // CORS Configuration - Allow frontend origin with credentials support
 app.use(cors({
-  origin: [
+    origin: [
     'http://localhost:5173',  // Default Vite port
     'http://localhost:5174',  // Alternative Vite port
     'http://localhost:3101',  // Previous frontend port
@@ -42,9 +42,19 @@ app.use(cors({
   ],
   credentials: true, // Allow cookies and authorization headers
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'], // Allowed HTTP methods
-  allowedHeaders: ['Content-Type', 'Authorization'], // Allowed request headers
-  exposedHeaders: ['set-cookie'], // Expose cookies to frontend
+    // Allow custom headers used by frontend (x-access-role etc.) plus common CORS headers
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'x-access-role', 'x-requested-with'],
+    exposedHeaders: ['set-cookie', 'Access-Control-Allow-Origin'], // Expose cookies and origin info to frontend
 }));
+
+// Also add a simple OPTIONS handler to respond to preflight requests and echo allowed headers
+app.options('*', (req, res) => {
+    res.header('Access-Control-Allow-Origin', req.get('Origin') || '*');
+    res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,PATCH,OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, x-access-role, x-requested-with');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    return res.sendStatus(204);
+});
 
 // body parser middleware
 app.use(exp.json());

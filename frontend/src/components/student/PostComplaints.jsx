@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import useCurrentUser from '../../hooks/student/useCurrentUser';
+import { toast } from 'react-hot-toast';
 
 const PostComplaint = () => {
     const { user, loading: userLoading } = useCurrentUser();
@@ -70,7 +71,7 @@ const PostComplaint = () => {
                 }
             );
 
-            alert(response.data.message || 'Complaint submitted successfully!');
+            toast.success(response.data.message || 'Complaint submitted successfully!');
             navigate('/home');
         } catch (error) {
             setError(error.response?.data?.error || 'Failed to submit complaint');

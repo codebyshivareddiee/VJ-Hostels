@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import { toast } from 'react-hot-toast';
 import { useAdmin } from '../../context/AdminContext';
 import StudentDetailsModal from './StudentDetailsModal';
 
@@ -177,7 +178,7 @@ const Rooms = () => {
 
     const handleChangeRoom = async () => {
         if (!selectedStudent || !newRoomNumber) {
-            alert('Please select a room');
+            toast.error('Please select a room');
             return;
         }
 
@@ -195,7 +196,7 @@ const Rooms = () => {
                 }
             );
 
-            alert(response.data.message);
+            toast.success(response.data.message);
             setShowChangeRoomModal(false);
 
             // Refresh the room data
@@ -204,7 +205,7 @@ const Rooms = () => {
                 fetchRoomStudents(selectedRoom.roomNumber);
             }
         } catch (err) {
-            alert('Failed to change room: ' + (err.response?.data?.error || err.message));
+            toast.error('Failed to change room: ' + (err.response?.data?.error || err.message));
             console.error(err);
         } finally {
             setChangingRoom(false);
@@ -229,7 +230,7 @@ const Rooms = () => {
                 }
             );
 
-            alert(response.data.message);
+            toast.success(response.data.message);
 
             // Refresh the room data
             fetchRooms();
@@ -237,7 +238,7 @@ const Rooms = () => {
                 fetchRoomStudents(selectedRoom.roomNumber);
             }
         } catch (err) {
-            alert('Failed to unassign room: ' + (err.response?.data?.error || err.message));
+            toast.error('Failed to unassign room: ' + (err.response?.data?.error || err.message));
             console.error(err);
         } finally {
             setUnassigningRoom(false);

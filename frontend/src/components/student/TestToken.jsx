@@ -1,15 +1,16 @@
 import { useState } from 'react';
+import { toast } from 'react-hot-toast';
 
 const TestToken = () => {
     const [token, setToken] = useState('');
 
     const handleSetToken = () => {
         if (token.trim()) {
-            localStorage.setItem('token', token.trim());
-            alert('Token set in localStorage! Refreshing page...');
-            window.location.reload();
+                localStorage.setItem('token', token.trim());
+                toast.success('Token set in localStorage! Refreshing page...');
+                setTimeout(() => window.location.reload(), 1200);
         } else {
-            alert('Please enter a token');
+                toast.error('Please enter a token');
         }
     };
 
@@ -17,8 +18,8 @@ const TestToken = () => {
         localStorage.removeItem('token');
         // Also clear any cookies
         document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-        alert('Token and cookies cleared! Refreshing page...');
-        window.location.reload();
+        toast.success('Token and cookies cleared! Refreshing page...');
+        setTimeout(() => window.location.reload(), 1200);
     };
 
     const handleGoogleLogin = () => {
