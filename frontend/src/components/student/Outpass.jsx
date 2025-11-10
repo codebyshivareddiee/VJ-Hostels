@@ -3,9 +3,13 @@ import { useForm, Controller } from 'react-hook-form';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import useCurrentUser from '../../hooks/student/useCurrentUser';
-import { Calendar, Clock, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { Calendar, Clock, ChevronLeft, ChevronRight, X, AlertTriangle } from 'lucide-react';
 import './OutpassDateTimePicker.css';
+<<<<<<< HEAD
 import { toast } from 'react-hot-toast';
+=======
+import { checkOffensiveContent } from '../common/OffensiveTextInput';
+>>>>>>> a876adb3d845f0620f6e8f01ff9c5fe50a5a5239
 
 // Modern DateTime Picker Component
 function DateTimePicker({ selectedDateTime, onConfirm, onClose, minDate }) {
@@ -717,6 +721,8 @@ function Outpass() {
     const [checkingActivePass, setCheckingActivePass] = useState(true);
     const [calculatedType, setCalculatedType] = useState('');
     const [showInTimePicker, setShowInTimePicker] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [offensiveWarning, setOffensiveWarning] = useState(null);
 
     const outTime = watch('outTime');
     const inTime = watch('inTime');
@@ -843,13 +849,26 @@ function Outpass() {
 
     const onSubmit = async (data) => {
         try {
+            setIsSubmitting(true);
+            setOffensiveWarning(null);
+
             if (!user?.phoneNumber || !user?.parentMobileNumber) {
+<<<<<<< HEAD
                 toast.error('Phone numbers are required. Please update your profile.');
+=======
+                alert('Phone numbers are required. Please update your profile.');
+                setIsSubmitting(false);
+>>>>>>> a876adb3d845f0620f6e8f01ff9c5fe50a5a5239
                 return;
             }
 
             if (!data.inTime) {
+<<<<<<< HEAD
                 toast.error('Please select an in time.');
+=======
+                alert('Please select an in time.');
+                setIsSubmitting(false);
+>>>>>>> a876adb3d845f0620f6e8f01ff9c5fe50a5a5239
                 return;
             }
 
@@ -857,8 +876,36 @@ function Outpass() {
             const inDateTime = new Date(data.inTime);
             
             if (inDateTime <= outDateTime) {
+<<<<<<< HEAD
                 toast.error('In time must be after out time.');
+=======
+                alert('In time must be after out time.');
+                setIsSubmitting(false);
+>>>>>>> a876adb3d845f0620f6e8f01ff9c5fe50a5a5239
                 return;
+            }
+
+            // Check for offensive content in reason
+            if (data.reason && data.reason.trim().length > 0) {
+                console.log('🔍 Checking reason for offensive content:', data.reason);
+                const offensiveCheck = await checkOffensiveContent(data.reason);
+                console.log('✅ Offensive check result:', offensiveCheck);
+                
+                if (offensiveCheck.isOffensive) {
+                    setOffensiveWarning(
+                        'Your reason contains inappropriate content (offensive language, emojis, or random text). Please revise it before submitting.'
+                    );
+                    setIsSubmitting(false);
+                    
+                    // Scroll to the warning message
+                    setTimeout(() => {
+                        const warningElement = document.querySelector('.offensive-warning');
+                        if (warningElement) {
+                            warningElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }
+                    }, 100);
+                    return;
+                }
             }
 
             const now = new Date();
@@ -877,16 +924,62 @@ function Outpass() {
 
             await axios.post(`${import.meta.env.VITE_SERVER_URL}/student-api/apply-outpass`, payload);
             reset();
+            setOffensiveWarning(null);
             window.location.reload();
         } catch (error) {
             console.error('Error:', error);
+<<<<<<< HEAD
             toast.error(error.response?.data?.message || 'Failed to submit outpass request');
+=======
+            alert(error.response?.data?.message || 'Failed to submit outpass request');
+            setIsSubmitting(false);
+>>>>>>> a876adb3d845f0620f6e8f01ff9c5fe50a5a5239
         }
     };
 
     return (
         <div className="form-container responsive-form">
             <h2 className="form-title">Apply for Outpass</h2>
+            
+            {offensiveWarning && (
+                <div className="offensive-warning" style={{
+                    backgroundColor: '#fff3cd',
+                    border: '2px solid #ffc107',
+                    borderRadius: '8px',
+                    padding: '1rem',
+                    marginBottom: '1.5rem',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '0.75rem',
+                    animation: 'shake 0.5s'
+                }}>
+                    <AlertTriangle size={24} style={{ color: '#856404', flexShrink: 0, marginTop: '2px' }} />
+                    <div style={{ flex: 1 }}>
+                        <h4 style={{ color: '#856404', margin: '0 0 0.5rem 0', fontSize: '1.1rem' }}>
+                            ⚠️ Inappropriate Content Detected
+                        </h4>
+                        <p style={{ color: '#856404', margin: 0, lineHeight: '1.5' }}>
+                            {offensiveWarning}
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => setOffensiveWarning(null)}
+                        style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#856404',
+                            cursor: 'pointer',
+                            fontSize: '1.5rem',
+                            lineHeight: '1',
+                            padding: '0',
+                            flexShrink: 0
+                        }}
+                    >
+                        ×
+                    </button>
+                </div>
+            )}
             
             <form onSubmit={handleSubmit(onSubmit)}>
                 <div className="form-row two-columns">
@@ -950,10 +1043,17 @@ function Outpass() {
                     <label className="form-label">Reason for Outpass</label>
                     <textarea
                         className="form-textarea"
-                        placeholder="Enter reason for outpass request"
+                        placeholder="Enter reason for outpass request (e.g., medical appointment, family emergency, personal work)"
                         {...register('reason', { required: 'Reason is required', maxLength: 200 })}
+                        style={{
+                            borderColor: offensiveWarning ? '#ffc107' : undefined,
+                            borderWidth: offensiveWarning ? '2px' : undefined
+                        }}
                     />
                     {errors.reason && <span className="error-message">{errors.reason.message}</span>}
+                    <small style={{ display: 'block', marginTop: '0.5rem', color: '#6c757d' }}>
+                        Please provide a clear and appropriate reason. Offensive language, emojis, or gibberish will be rejected.
+                    </small>
                 </div>
 
                 <div className="form-group">
@@ -983,8 +1083,28 @@ function Outpass() {
                     {/* {errors.type && <span className="error-message">{errors.type.message}</span>} */}
                 </div>
 
-                <button type="submit" className="form-button">Submit Outpass Request</button>
+                <button 
+                    type="submit" 
+                    className="form-button"
+                    disabled={isSubmitting}
+                    style={{
+                        opacity: isSubmitting ? 0.6 : 1,
+                        cursor: isSubmitting ? 'not-allowed' : 'pointer'
+                    }}
+                >
+                    {isSubmitting ? 'Validating & Submitting...' : 'Submit Outpass Request'}
+                </button>
             </form>
+            
+            <style>
+                {`
+                    @keyframes shake {
+                        0%, 100% { transform: translateX(0); }
+                        10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+                        20%, 40%, 60%, 80% { transform: translateX(5px); }
+                    }
+                `}
+            </style>
         </div>
     );
 }

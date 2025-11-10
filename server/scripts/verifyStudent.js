@@ -48,7 +48,7 @@ async function verifyStudent(email) {
 
 // Verify the student
 if (require.main === module) {
-  const emailToVerify = 'mkrishna@vnrvjiet.in'; //karthikbtechcse2006@gmail.com
+  const emailToVerify = '23071a7243@vnrvjiet.in'; //karthikbtechcse2006@gmail.com
   console.log('Verifying student:', emailToVerify);
   console.log('═' * 60);
   

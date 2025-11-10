@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Users, Clock, CheckCircle, XCircle, Phone, User, Calendar, AlertCircle, Settings, Copy, Check, Plus, ChevronDown } from 'lucide-react';
+import { Users, Clock, CheckCircle, XCircle, Phone, User, Calendar, AlertCircle, Settings, Copy, Check, Plus, AlertTriangle } from 'lucide-react';
 import useCurrentUser from '../../hooks/student/useCurrentUser';
 import VisitorPreferences from './VisitorPreferences';
 import io from 'socket.io-client';
+import { checkOffensiveContent } from '../common/OffensiveTextInput';
 
 const VisitorManagement = () => {
   const { user } = useCurrentUser();
@@ -20,6 +21,7 @@ const VisitorManagement = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [copiedOTP, setCopiedOTP] = useState(null);
+  const [offensiveWarning, setOffensiveWarning] = useState(null);
   const [visitorForm, setVisitorForm] = useState({
     visitorName: '',
     visitorPhone: '',
@@ -233,6 +235,31 @@ const VisitorManagement = () => {
     e.preventDefault();
     try {
       setLoading(true);
+      setOffensiveWarning(null);
+
+      // Check for offensive content in purpose
+      if (visitorForm.purpose && visitorForm.purpose.trim().length > 0) {
+        console.log('🔍 Checking purpose for offensive content:', visitorForm.purpose);
+        const offensiveCheck = await checkOffensiveContent(visitorForm.purpose);
+        console.log('✅ Offensive check result:', offensiveCheck);
+        
+        if (offensiveCheck.isOffensive) {
+          setOffensiveWarning(
+            'The purpose of visit contains inappropriate content (offensive language, emojis, or random text). Please revise it before submitting.'
+          );
+          setLoading(false);
+          
+          // Scroll to the warning message
+          setTimeout(() => {
+            const warningElement = document.querySelector('.offensive-warning-visitor');
+            if (warningElement) {
+              warningElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          }, 100);
+          return;
+        }
+      }
+
       const token = localStorage.getItem('token');
       const response = await fetch(`${import.meta.env.VITE_SERVER_URL}/api/otp/generate`, {
         method: 'POST',
@@ -261,6 +288,7 @@ const VisitorManagement = () => {
           purpose: '',
           groupSize: 1
         });
+        setOffensiveWarning(null);
       } else {
         setError('Failed to generate OTP');
       }
@@ -482,247 +510,285 @@ const VisitorManagement = () => {
         </div>
       )}
 
-      {/* Generate OTP View */}
-      {currentView === 'generate' && (
-        <div style={{
-          background: 'white',
-          borderRadius: '16px',
-          boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
-          overflow: 'hidden',
-          maxWidth: '600px',
-          margin: '0 auto'
-        }}>
+        {currentView === 'generate' && (
           <div style={{
-            padding: '1.5rem',
-            borderBottom: '1px solid #e2e8f0',
-            background: 'linear-gradient(to right, #f8fafc, #ffffff)'
+            background: 'white',
+            borderRadius: '16px',
+            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
+            overflow: 'hidden',
+            maxWidth: '600px',
+            margin: '0 auto'
           }}>
-            <h5 style={{
-              fontSize: '1.25rem',
-              fontWeight: '600',
-              color: '#1e293b',
-              margin: 0
-            }}>Generate Visitor OTP</h5>
-          </div>
-          <div style={{ padding: '1.5rem' }}>
-            <form onSubmit={handleGenerateOTP}>
-              <div style={{ marginBottom: '1.25rem' }}>
-                <label style={{
-                  display: 'block',
-                  fontWeight: '600',
-                  color: '#374151',
-                  marginBottom: '0.5rem',
-                  fontSize: '0.875rem'
-                }}>Visitor Name</label>
-                <input
-                  type="text"
-                  style={{
-                    width: '100%',
-                    padding: '0.75rem 1rem',
-                    border: '2px solid #e2e8f0',
-                    borderRadius: '10px',
-                    fontSize: '0.95rem',
-                    transition: 'all 0.2s ease',
-                    background: 'white',
-                    color: '#1e293b'
-                  }}
-                  value={visitorForm.visitorName}
-                  onChange={(e) => setVisitorForm({...visitorForm, visitorName: e.target.value})}
-                  placeholder="Enter visitor's full name"
-                  onFocus={(e) => {
-                    e.target.style.borderColor = '#667eea';
-                    e.target.style.boxShadow = '0 0 0 3px rgba(102, 126, 234, 0.1)';
-                    e.target.style.outline = 'none';
-                  }}
-                  onBlur={(e) => {
-                    e.target.style.borderColor = '#e2e8f0';
-                    e.target.style.boxShadow = 'none';
-                  }}
-                  required
-                />
-              </div>
-              <div style={{ marginBottom: '1.25rem' }}>
-                <label style={{
-                  display: 'block',
-                  fontWeight: '600',
-                  color: '#374151',
-                  marginBottom: '0.5rem',
-                  fontSize: '0.875rem'
-                }}>Visitor Phone</label>
-                <input
-                  type="tel"
-                  style={{
-                    width: '100%',
-                    padding: '0.75rem 1rem',
-                    border: '2px solid #e2e8f0',
-                    borderRadius: '10px',
-                    fontSize: '0.95rem',
-                    transition: 'all 0.2s ease',
-                    background: 'white',
-                    color: '#1e293b'
-                  }}
-                  value={visitorForm.visitorPhone}
-                  onChange={(e) => setVisitorForm({...visitorForm, visitorPhone: e.target.value})}
-                  placeholder="Enter visitor's phone number"
-                  onFocus={(e) => {
-                    e.target.style.borderColor = '#667eea';
-                    e.target.style.boxShadow = '0 0 0 3px rgba(102, 126, 234, 0.1)';
-                    e.target.style.outline = 'none';
-                  }}
-                  onBlur={(e) => {
-                    e.target.style.borderColor = '#e2e8f0';
-                    e.target.style.boxShadow = 'none';
-                  }}
-                  required
-                />
-              </div>
-              <div style={{ marginBottom: '1.25rem' }}>
-                <label style={{
-                  display: 'block',
-                  fontWeight: '600',
-                  color: '#374151',
-                  marginBottom: '0.5rem',
-                  fontSize: '0.875rem'
-                }}>Purpose of Visit</label>
-                <input
-                  type="text"
-                  style={{
-                    width: '100%',
-                    padding: '0.75rem 1rem',
-                    border: '2px solid #e2e8f0',
-                    borderRadius: '10px',
-                    fontSize: '0.95rem',
-                    transition: 'all 0.2s ease',
-                    background: 'white',
-                    color: '#1e293b'
-                  }}
-                  value={visitorForm.purpose}
-                  onChange={(e) => setVisitorForm({...visitorForm, purpose: e.target.value})}
-                  placeholder="Enter the reason for visit"
-                  onFocus={(e) => {
-                    e.target.style.borderColor = '#667eea';
-                    e.target.style.boxShadow = '0 0 0 3px rgba(102, 126, 234, 0.1)';
-                    e.target.style.outline = 'none';
-                  }}
-                  onBlur={(e) => {
-                    e.target.style.borderColor = '#e2e8f0';
-                    e.target.style.boxShadow = 'none';
-                  }}
-                  required
-                />
-              </div>
-              <div style={{ marginBottom: '1.25rem', position: 'relative' }} ref={groupSizeRef}>
-                <label style={{
-                  display: 'block',
-                  fontWeight: '600',
-                  color: '#374151',
-                  marginBottom: '0.5rem',
-                  fontSize: '0.875rem'
-                }}>Group Size</label>
-                <div
-                  onClick={() => setGroupSizeOpen(!groupSizeOpen)}
-                  style={{
-                    width: '100%',
-                    padding: '0.75rem 1rem',
-                    border: groupSizeOpen ? '2px solid #667eea' : '2px solid #e2e8f0',
-                    borderRadius: '10px',
-                    fontSize: '0.95rem',
-                    background: 'white',
-                    color: '#1e293b',
-                    cursor: 'pointer',
-                    boxSizing: 'border-box',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    boxShadow: groupSizeOpen ? '0 0 0 3px rgba(102, 126, 234, 0.1)' : 'none',
-                    transition: 'all 0.2s ease'
-                  }}
-                >
-                  <span>{visitorForm.groupSize} {visitorForm.groupSize === 1 ? 'person' : 'people'}</span>
-                  <ChevronDown size={16} style={{ transform: groupSizeOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }} />
-                </div>
-                {groupSizeOpen && (
-                  <div style={{
-                    position: 'absolute',
-                    bottom: '100%',
-                    left: 0,
-                    right: 0,
-                    marginBottom: '0.25rem',
-                    background: 'white',
-                    border: '2px solid #e2e8f0',
-                    borderRadius: '10px',
-                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
-                    zIndex: 1000,
-                    maxHeight: '200px',
-                    overflowY: 'auto'
-                  }}>
-                    {[1,2,3,4,5].map(size => (
-                      <div
-                        key={size}
-                        onClick={() => {
-                          setVisitorForm({...visitorForm, groupSize: size});
-                          setGroupSizeOpen(false);
-                        }}
-                        style={{
-                          padding: '0.75rem 1rem',
-                          cursor: 'pointer',
-                          background: visitorForm.groupSize === size ? '#f0f4ff' : 'white',
-                          color: visitorForm.groupSize === size ? '#667eea' : '#1e293b',
-                          fontWeight: visitorForm.groupSize === size ? '600' : '400',
-                          transition: 'all 0.15s ease'
-                        }}
-                        onMouseEnter={(e) => {
-                          if (visitorForm.groupSize !== size) {
-                            e.currentTarget.style.background = '#f8fafc';
-                          }
-                        }}
-                        onMouseLeave={(e) => {
-                          if (visitorForm.groupSize !== size) {
-                            e.currentTarget.style.background = 'white';
-                          }
-                        }}
-                      >
-                        {size} {size === 1 ? 'person' : 'people'}
-                      </div>
-                    ))}
+            <div style={{
+              padding: '1.5rem',
+              borderBottom: '1px solid #e2e8f0',
+              background: 'linear-gradient(to right, #f8fafc, #ffffff)'
+            }}>
+              <h5 style={{
+                fontSize: '1.25rem',
+                fontWeight: '600',
+                color: '#1e293b',
+                margin: 0,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem'
+              }}>
+                <Plus size={20} />
+                Generate Visitor OTP
+              </h5>
+            </div>
+            <div style={{ padding: '1.5rem' }}>
+              {offensiveWarning && (
+                <div className="offensive-warning-visitor" style={{
+                  backgroundColor: '#fff3cd',
+                  border: '2px solid #ffc107',
+                  borderRadius: '12px',
+                  padding: '1rem',
+                  marginBottom: '1.5rem',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '0.75rem',
+                  animation: 'shake 0.5s'
+                }}>
+                  <AlertTriangle size={24} style={{ color: '#856404', flexShrink: 0, marginTop: '2px' }} />
+                  <div style={{ flex: 1 }}>
+                    <h6 style={{ color: '#856404', margin: '0 0 0.5rem 0', fontSize: '1rem', fontWeight: 'bold' }}>
+                      ⚠️ Inappropriate Content Detected
+                    </h6>
+                    <p style={{ color: '#856404', margin: 0, lineHeight: '1.5', fontSize: '0.875rem' }}>
+                      {offensiveWarning}
+                    </p>
                   </div>
-                )}
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'center' }}>
+                  <button
+                    type="button"
+                    onClick={() => setOffensiveWarning(null)}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#856404',
+                      cursor: 'pointer',
+                      fontSize: '1.5rem',
+                      lineHeight: '1',
+                      padding: '0',
+                      flexShrink: 0,
+                      width: '24px',
+                      height: '24px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderRadius: '4px',
+                      transition: 'background 0.2s'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(0, 0, 0, 0.05)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                  >
+                    ×
+                  </button>
+                </div>
+              )}
+
+              <form onSubmit={handleGenerateOTP}>
+                <div style={{ marginBottom: '1.25rem' }}>
+                  <label style={{
+                    display: 'block',
+                    marginBottom: '0.5rem',
+                    fontWeight: '600',
+                    fontSize: '0.875rem',
+                    color: '#1e293b'
+                  }}>Visitor Name</label>
+                  <input
+                    type="text"
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      border: '2px solid #e2e8f0',
+                      borderRadius: '10px',
+                      fontSize: '0.875rem',
+                      transition: 'all 0.2s',
+                      outline: 'none'
+                    }}
+                    value={visitorForm.visitorName}
+                    onChange={(e) => setVisitorForm({...visitorForm, visitorName: e.target.value})}
+                    onFocus={(e) => e.currentTarget.style.borderColor = '#667eea'}
+                    onBlur={(e) => e.currentTarget.style.borderColor = '#e2e8f0'}
+                    placeholder="Enter visitor's full name"
+                    required
+                  />
+                </div>
+
+                <div style={{ marginBottom: '1.25rem' }}>
+                  <label style={{
+                    display: 'block',
+                    marginBottom: '0.5rem',
+                    fontWeight: '600',
+                    fontSize: '0.875rem',
+                    color: '#1e293b'
+                  }}>Visitor Phone</label>
+                  <input
+                    type="tel"
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      border: '2px solid #e2e8f0',
+                      borderRadius: '10px',
+                      fontSize: '0.875rem',
+                      transition: 'all 0.2s',
+                      outline: 'none'
+                    }}
+                    value={visitorForm.visitorPhone}
+                    onChange={(e) => setVisitorForm({...visitorForm, visitorPhone: e.target.value})}
+                    onFocus={(e) => e.currentTarget.style.borderColor = '#667eea'}
+                    onBlur={(e) => e.currentTarget.style.borderColor = '#e2e8f0'}
+                    placeholder="Enter phone number"
+                    required
+                  />
+                </div>
+
+                <div style={{ marginBottom: '1.25rem' }}>
+                  <label style={{
+                    display: 'block',
+                    marginBottom: '0.5rem',
+                    fontWeight: '600',
+                    fontSize: '0.875rem',
+                    color: '#1e293b'
+                  }}>Purpose of Visit</label>
+                  <input
+                    type="text"
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      border: offensiveWarning ? '2px solid #ffc107' : '2px solid #e2e8f0',
+                      borderRadius: '10px',
+                      fontSize: '0.875rem',
+                      transition: 'all 0.2s',
+                      outline: 'none',
+                      background: offensiveWarning ? '#fffbf0' : 'white'
+                    }}
+                    value={visitorForm.purpose}
+                    onChange={(e) => {
+                      setVisitorForm({...visitorForm, purpose: e.target.value});
+                      if (offensiveWarning) setOffensiveWarning(null);
+                    }}
+                    onFocus={(e) => {
+                      if (!offensiveWarning) e.currentTarget.style.borderColor = '#667eea';
+                    }}
+                    onBlur={(e) => {
+                      if (!offensiveWarning) e.currentTarget.style.borderColor = '#e2e8f0';
+                    }}
+                    placeholder="e.g., Meeting, Family visit, Academic discussion"
+                    required
+                  />
+                  <small style={{
+                    display: 'block',
+                    marginTop: '0.5rem',
+                    color: '#64748b',
+                    fontSize: '0.8125rem',
+                    lineHeight: '1.4'
+                  }}>
+                    Please provide a clear and appropriate purpose. Offensive language, emojis, or gibberish will be rejected.
+                  </small>
+                </div>
+
+                <div style={{ marginBottom: '1.5rem' }}>
+                  <label style={{
+                    display: 'block',
+                    marginBottom: '0.5rem',
+                    fontWeight: '600',
+                    fontSize: '0.875rem',
+                    color: '#1e293b'
+                  }}>Group Size</label>
+                  <select
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      border: '2px solid #e2e8f0',
+                      borderRadius: '10px',
+                      fontSize: '0.875rem',
+                      transition: 'all 0.2s',
+                      outline: 'none',
+                      cursor: 'pointer',
+                      background: 'white'
+                    }}
+                    value={visitorForm.groupSize}
+                    onChange={(e) => setVisitorForm({...visitorForm, groupSize: parseInt(e.target.value)})}
+                    onFocus={(e) => e.currentTarget.style.borderColor = '#667eea'}
+                    onBlur={(e) => e.currentTarget.style.borderColor = '#e2e8f0'}
+                  >
+                    {[1,2,3,4,5].map(size => (
+                      <option key={size} value={size}>{size} {size === 1 ? 'person' : 'people'}</option>
+                    ))}
+                  </select>
+                </div>
+
                 <button
                   type="submit"
+                  disabled={loading}
                   style={{
-                    padding: '0.75rem 1.5rem',
+                    width: '100%',
+                    padding: '0.875rem',
+                    background: loading ? '#94a3b8' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    color: 'white',
                     border: 'none',
                     borderRadius: '10px',
+                    fontSize: '0.9375rem',
                     fontWeight: '600',
-                    fontSize: '0.95rem',
                     cursor: loading ? 'not-allowed' : 'pointer',
-                    transition: 'all 0.2s ease',
-                    background: '#667eea',
-                    color: 'white',
-                    boxShadow: '0 4px 12px rgba(102, 126, 234, 0.3)',
-                    opacity: loading ? 0.6 : 1
+                    transition: 'all 0.2s',
+                    boxShadow: loading ? 'none' : '0 4px 12px rgba(102, 126, 234, 0.4)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.5rem'
                   }}
-                disabled={loading}
-                onMouseEnter={(e) => {
-                  if (!loading) {
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = '0 6px 16px rgba(102, 126, 234, 0.4)';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.3)';
-                }}
+                  onMouseEnter={(e) => {
+                    if (!loading) {
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                      e.currentTarget.style.boxShadow = '0 6px 16px rgba(102, 126, 234, 0.5)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!loading) {
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.4)';
+                    }
+                  }}
                 >
-                  {loading ? 'Generating...' : 'Generate OTP'}
+                  {loading ? (
+                    <>
+                      <div style={{
+                        width: '16px',
+                        height: '16px',
+                        border: '2px solid rgba(255, 255, 255, 0.3)',
+                        borderTopColor: 'white',
+                        borderRadius: '50%',
+                        animation: 'spin 0.8s linear infinite'
+                      }} />
+                      Validating & Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Plus size={18} />
+                      Generate OTP
+                    </>
+                  )}
                 </button>
-              </div>
-            </form>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+
+        <style>
+          {`
+            @keyframes shake {
+              0%, 100% { transform: translateX(0); }
+              10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+              20%, 40%, 60%, 80% { transform: translateX(5px); }
+            }
+            @keyframes spin {
+              to { transform: rotate(360deg); }
+            }
+          `}
+        </style>
 
       {/* Active OTPs View */}
       {currentView === 'active' && (
