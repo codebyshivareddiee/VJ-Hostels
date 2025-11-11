@@ -445,33 +445,6 @@ adminApp.get('/announcements', verifyAdmin, expressAsyncHandler(async (req, res)
 }))
 
 
-// // to post community message
-// adminApp.post('/post-community-message', expressAsyncHandler(async (req, res) => {
-//     try {
-//         const { content, images, postedBy, category } = req.body;
-
-//         const newPost = new CommunityPost({ content, images, postedBy, category });
-
-//         await newPost.save();
-
-//         res.status(201).json({ message: "Community message posted successfully", post: newPost });
-//     } catch (error) {
-//         res.status(500).json({ error: error.message });
-//     }
-// }));
-
-// to read community messages
-adminApp.get('/get-community-messages', verifyAdmin, expressAsyncHandler(async (req, res) => {
-    try {
-        const communityPosts = await CommunityPost.find().sort({ createdAt: -1 });
-
-        res.status(200).json(communityPosts);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-}));
-
-
 //  // complaints section
 
 // to read all complaints

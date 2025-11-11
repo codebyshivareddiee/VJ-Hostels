@@ -8,17 +8,10 @@ const Outpasses = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
+    const [showHistory, setShowHistory] = useState(false);
     
-    // Get today's date in YYYY-MM-DD format
-    const getTodayDate = () => {
-        const today = new Date();
-        return today.toISOString().split('T')[0];
-    };
-    
-    // Filter states - set default Out Time to today
+    // Filter states
     const [filterType, setFilterType] = useState(''); // '' | 'home pass' | 'late pass'
-    const [filterOutTime, setFilterOutTime] = useState(getTodayDate());
-    const [filterInTime, setFilterInTime] = useState('');
     const [filterBatch, setFilterBatch] = useState(''); // year
     
     const { token } = useAdmin();
@@ -66,6 +59,18 @@ const Outpasses = () => {
 
     // Apply all filters
     const filteredOutpasses = outpasses.filter(outpass => {
+        // If showing history, only show approved/returned/out statuses
+        if (showHistory) {
+            if (!['approved', 'returned', 'out'].includes(outpass.status)) {
+                return false;
+            }
+        } else {
+            // In normal view, only show pending requests
+            if (outpass.status !== 'pending') {
+                return false;
+            }
+        }
+        
         // Search filter
         const matchesSearch = outpass.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
             outpass.rollNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -79,40 +84,31 @@ const Outpasses = () => {
         // Batch/Year filter - use studentYear field that comes from Student collection
         if (filterBatch && outpass.studentYear !== filterBatch) return false;
 
-        // Out Time filter - check if outpass has outTime on the selected date
-        if (filterOutTime) {
-            const outTimeDate = new Date(outpass.outTime);
-            const filterDate = new Date(filterOutTime);
-            const isSameDay = outTimeDate.toDateString() === filterDate.toDateString();
-            if (!isSameDay) return false;
-        }
-
-        // In Time filter - check if outpass has inTime on the selected date
-        if (filterInTime) {
-            const inTimeDate = new Date(outpass.inTime);
-            const filterDate = new Date(filterInTime);
-            const isSameDay = inTimeDate.toDateString() === filterDate.toDateString();
-            if (!isSameDay) return false;
-        }
-
         return true;
     });
 
     const clearFilters = () => {
         setFilterType('');
-        setFilterOutTime(getTodayDate());
-        setFilterInTime('');
         setFilterBatch('');
         setSearchTerm('');
     };
 
     return (
         <div>
-            <h2 className="mb-4">Outpass Requests</h2>
+            <div className="d-flex justify-content-between align-items-center mb-4">
+                <h2 className="mb-0">Outpass Requests</h2>
+                <button
+                    className={`btn ${showHistory ? 'btn-secondary' : 'btn-primary'}`}
+                    onClick={() => setShowHistory(!showHistory)}
+                >
+                    <i className={`bi ${showHistory ? 'bi-arrow-left' : 'bi-clock-history'} me-2`}></i>
+                    {showHistory ? 'Back to All Requests' : 'View History'}
+                </button>
+            </div>
 
             <div className="card">
                 <div className="card-header bg-light">
-                    <h5 className="mb-0">All Outpass Requests</h5>
+                    <h5 className="mb-0">{showHistory ? 'Outpass History (Approved & Returned)' : 'Pending Outpass Requests'}</h5>
                 </div>
                 <div className="card-body">
 
@@ -131,7 +127,7 @@ const Outpasses = () => {
                         </div>
                         <div className="row g-3">
                             {/* Type Filter */}
-                            <div className="col-md-3">
+                            <div className="col-md-6">
                                 <label className="form-label">Type</label>
                                 <select 
                                     className="form-select"
@@ -144,30 +140,8 @@ const Outpasses = () => {
                                 </select>
                             </div>
 
-                            {/* Out Time Filter */}
-                            <div className="col-md-3">
-                                <label className="form-label">Out Time Date</label>
-                                <input
-                                    type="date"
-                                    className="form-control"
-                                    value={filterOutTime}
-                                    onChange={(e) => setFilterOutTime(e.target.value)}
-                                />
-                            </div>
-
-                            {/* In Time Filter */}
-                            <div className="col-md-3">
-                                <label className="form-label">In Time Date</label>
-                                <input
-                                    type="date"
-                                    className="form-control"
-                                    value={filterInTime}
-                                    onChange={(e) => setFilterInTime(e.target.value)}
-                                />
-                            </div>
-
                             {/* Batch/Year Filter */}
-                            <div className="col-md-3">
+                            <div className="col-md-6">
                                 <label className="form-label">Batch</label>
                                 <select 
                                     className="form-select"
@@ -183,13 +157,11 @@ const Outpasses = () => {
                         </div>
                         
                         {/* Active filters indicator */}
-                        {(filterType || filterOutTime || filterInTime || filterBatch) && (
+                        {(filterType || filterBatch) && (
                             <div className="mt-2">
                                 <small className="text-muted">
                                     Active filters: 
                                     {filterType && <span className="badge bg-info ms-1">{filterType}</span>}
-                                    {filterOutTime && <span className="badge bg-info ms-1">Out: {filterOutTime}</span>}
-                                    {filterInTime && <span className="badge bg-info ms-1">In: {filterInTime}</span>}
                                     {filterBatch && <span className="badge bg-info ms-1">Batch: {filterBatch}</span>}
                                 </small>
                             </div>
@@ -217,13 +189,16 @@ const Outpasses = () => {
                         </div>
                     ) : filteredOutpasses.length === 0 ? (
                         <div className="alert alert-info" role="alert">
-                            No outpass requests found matching the current filters.
+                            {showHistory 
+                                ? 'No outpass history found matching the current filters.' 
+                                : 'No outpass requests found matching the current filters.'}
                         </div>
                     ) : (
                         <>
                             <div className="mb-2">
                                 <small className="text-muted">
                                     Showing {filteredOutpasses.length} of {outpasses.length} outpass{outpasses.length !== 1 ? 'es' : ''}
+                                    {showHistory && ' (History)'}
                                 </small>
                             </div>
                             <div className="table-responsive">
@@ -238,7 +213,7 @@ const Outpasses = () => {
                                             <th>Reason</th>
                                             <th>Contact</th>
                                             <th>Status</th>
-                                            <th>Actions</th>
+                                            {!showHistory && <th>Actions</th>}
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -270,26 +245,28 @@ const Outpasses = () => {
                                                         {outpass.status}
                                                     </span>
                                                 </td>
-                                                <td>
-                                                    {outpass.status === 'pending' ? (
-                                                        <div className="d-flex gap-2">
-                                                            <button
-                                                                className="btn btn-sm btn-success"
-                                                                onClick={() => handleUpdateStatus(outpass._id, 'approved')}
-                                                            >
-                                                                Approve
-                                                            </button>
-                                                            <button
-                                                                className="btn btn-sm btn-danger"
-                                                                onClick={() => handleUpdateStatus(outpass._id, 'rejected')}
-                                                            >
-                                                                Reject
-                                                            </button>
-                                                        </div>
-                                                    ) : (
-                                                        <span className="text-muted">-</span>
-                                                    )}
-                                                </td>
+                                                {!showHistory && (
+                                                    <td>
+                                                        {outpass.status === 'pending' ? (
+                                                            <div className="d-flex gap-2">
+                                                                <button
+                                                                    className="btn btn-sm btn-success"
+                                                                    onClick={() => handleUpdateStatus(outpass._id, 'approved')}
+                                                                >
+                                                                    Approve
+                                                                </button>
+                                                                <button
+                                                                    className="btn btn-sm btn-danger"
+                                                                    onClick={() => handleUpdateStatus(outpass._id, 'rejected')}
+                                                                >
+                                                                    Reject
+                                                                </button>
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-muted">-</span>
+                                                        )}
+                                                    </td>
+                                                )}
                                             </tr>
                                         ))}
                                     </tbody>

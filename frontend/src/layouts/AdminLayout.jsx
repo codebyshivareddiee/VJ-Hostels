@@ -211,12 +211,6 @@ const AdminLayout = () => {
             onClick={closeSidebarOnMobile}
           />
           <SidebarNavItem 
-            icon={<MessageCircle size={20} />} 
-            label="Community" 
-            to="/admin/community"
-            onClick={closeSidebarOnMobile}
-          />
-          <SidebarNavItem 
             icon={<User size={20} />} 
             label="Profile" 
             to="/admin/profile"
