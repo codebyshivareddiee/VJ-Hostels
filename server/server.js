@@ -232,6 +232,96 @@ app.use((req, res, next) => {
 const seoConfig = require('./config/seoConfig');
 seoConfig.setupSEOFiles(app);
 
+// SMS endpoint - MUST be before static file serve
+const twilio = require('twilio');
+
+// Validate credentials before creating client
+if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN) {
+  console.error('❌ CRITICAL: Twilio credentials are not configured!');
+  console.error('Missing:');
+  if (!process.env.TWILIO_ACCOUNT_SID) console.error('  - TWILIO_ACCOUNT_SID');
+  if (!process.env.TWILIO_AUTH_TOKEN) console.error('  - TWILIO_AUTH_TOKEN');
+  if (!process.env.TWILIO_PHONE_NUMBER) console.error('  - TWILIO_PHONE_NUMBER');
+  console.error('Please add these to your server/.env file');
+}
+
+const client = twilio(
+  process.env.TWILIO_ACCOUNT_SID,
+  process.env.TWILIO_AUTH_TOKEN
+);
+
+app.post('/send-sms', async (req, res) => {
+  try {
+    const { to, message } = req.body;
+
+    // Validate input
+    if (!to || !message) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Missing required fields: to and message' 
+      });
+    }
+
+    // Validate Twilio credentials are configured
+    if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN || !process.env.TWILIO_PHONE_NUMBER) {
+      console.error('❌ Twilio credentials not configured at request time');
+      return res.status(500).json({ 
+        success: false, 
+        error: 'Twilio credentials not configured. Please check server environment variables: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER' 
+      });
+    }
+
+    // Log the attempt (without exposing full credentials)
+    console.log(`📱 SMS Request:`);
+    console.log(`  To: ${to}`);
+    console.log(`  From: ${process.env.TWILIO_PHONE_NUMBER}`);
+    console.log(`  Message length: ${message.length} characters`);
+    console.log(`  Using Account: ${process.env.TWILIO_ACCOUNT_SID.substring(0, 5)}...`);
+
+    // Send SMS
+    const sms = await client.messages.create({
+      body: message,
+      from: process.env.TWILIO_PHONE_NUMBER,
+      to: to,
+    });
+
+    console.log(`✅ SMS sent successfully!`);
+    console.log(`  SID: ${sms.sid}`);
+    console.log(`  Status: ${sms.status}`);
+    
+    res.status(200).json({ success: true, sid: sms.sid });
+  } catch (error) {
+    console.error('❌ Twilio SMS Error:');
+    console.error('Error Type:', error.constructor.name);
+    console.error('Status Code:', error.status);
+    console.error('Error Code:', error.code);
+    console.error('Message:', error.message);
+    console.error('Full Error:', error);
+    
+    // Provide helpful error messages based on error code
+    let userFriendlyError = 'Failed to send SMS';
+    
+    if (error.code === 20003) {
+      userFriendlyError = 'Authentication failed: Invalid Twilio credentials. Please verify TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN in server/.env';
+    } else if (error.code === 21211) {
+      userFriendlyError = 'Invalid phone number format. Please use format like +919876543210';
+    } else if (error.code === 21603) {
+      userFriendlyError = 'Invalid phone number. Please verify the phone number is correct.';
+    } else if (error.code === 21606) {
+      userFriendlyError = 'Account not authorized to send SMS to this number. For trial accounts, verify the number in Twilio Console.';
+    } else if (error.code === 21609) {
+      userFriendlyError = 'Insufficient credits. Please check your Twilio account balance.';
+    }
+    
+    res.status(error.status || 500).json({ 
+      success: false, 
+      error: userFriendlyError,
+      code: error.code,
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
 // Serve frontend for all other routes
 const path = require('path');
 app.use(exp.static(path.join(__dirname, '../frontend/dist')));
@@ -289,3 +379,4 @@ process.on('SIGTERM', async () => {
         process.exit(1);
     }
 });
+

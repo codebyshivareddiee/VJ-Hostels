@@ -323,23 +323,31 @@ foodApp.get('/admin/feedback', verifyAdmin, expressAsyncHandler(async (req, res)
         const totalCount = await FoodFeedback.countDocuments({});
         console.log('Total feedback in database:', totalCount);
 
-        // Fetch feedback without student personal information (for privacy)
+        // Fetch feedback and populate student name
         const feedback = await FoodFeedback.find(filter)
-            .select('-student_id -__v') // Exclude student_id and version field
+            .populate('student_id', 'name rollNumber') // Populate student name and rollNumber
+            .select('-__v') // Exclude only version field
             .sort({ date: -1, createdAt: -1 }); // Sort by date (newest first), then creation time
         
-        console.log('Feedback found with filter:', feedback.length);
-        if (feedback.length > 0) {
+        // Transform the response to include student name at top level
+        const feedbackWithStudentName = feedback.map(item => ({
+            ...item.toObject(),
+            studentName: item.student_id?.name || 'Unknown',
+            studentRollNumber: item.student_id?.rollNumber || 'N/A'
+        }));
+        
+        console.log('Feedback found with filter:', feedbackWithStudentName.length);
+        if (feedbackWithStudentName.length > 0) {
             console.log('Sample feedback (first 3):');
-            feedback.slice(0, 3).forEach((f, i) => {
-                console.log(`  ${i + 1}. Date: ${f.dateStr || 'no dateStr'}, Meal: ${f.mealType}, Rating: ${f.rating}`);
+            feedbackWithStudentName.slice(0, 3).forEach((f, i) => {
+                console.log(`  ${i + 1}. Student: ${f.studentName}, Date: ${f.dateStr || 'no dateStr'}, Meal: ${f.mealType}, Rating: ${f.rating}`);
             });
         } else {
             console.log('No feedback matched the filter!');
         }
         console.log('=============================\n');
         
-        res.status(200).json(feedback);
+        res.status(200).json(feedbackWithStudentName);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
