@@ -504,7 +504,7 @@ const Students = () => {
                                                         className="btn btn-sm btn-danger"
                                                         onClick={() => handleDeactivateStudent(student.rollNumber)}
                                                     >
-                                                        Deactivate
+                                                        Delete
                                                     </button>
                                                 </div>
                                             </td>
