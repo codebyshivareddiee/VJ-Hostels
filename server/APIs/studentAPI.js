@@ -294,6 +294,10 @@ studentApp.post('/apply-outpass', expressAsyncHandler(async (req, res) => {
             });
         }
 
+        // Fetch student to get their year
+        const student = await Student.findOne({ rollNumber });
+        const studentYear = student?.year || null;
+
         // Check for offensive content in reason
         const offensiveCheck = await checkOffensiveContent(reason);
         if (offensiveCheck.isOffensive) {
@@ -357,6 +361,7 @@ studentApp.post('/apply-outpass', expressAsyncHandler(async (req, res) => {
             type,
             month: currentMonth,
             year: currentYear,
+            studentYear, // Add student's batch year
             status: 'pending'
         });
 

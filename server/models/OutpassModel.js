@@ -15,6 +15,7 @@ const outpassSchema = new mongoose.Schema({
     parentMobileNumber: { type: String, required: true },
     month: { type: Number, required: true },
     year: { type: Number, required: true },
+    studentYear: { type: String },
     status: { 
         type: String, 
         enum: ['pending', 'approved', 'rejected', 'out', 'returned', 'late'], 

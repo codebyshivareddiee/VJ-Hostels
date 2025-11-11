@@ -50,6 +50,9 @@ const Rooms = () => {
 
     const [roomStats, setRoomStats] = useState(null);
 
+    // For syncing rooms
+    const [syncingRooms, setSyncingRooms] = useState(false);
+
     // Removed room exchange feature
 
     useEffect(() => {
@@ -93,6 +96,39 @@ const Rooms = () => {
             setRoomStats(response.data);
         } catch (err) {
             console.error('Failed to load room statistics', err);
+        }
+    };
+
+    const handleSyncRooms = async () => {
+        try {
+            setSyncingRooms(true);
+            toast.loading('Syncing room occupancy...', { id: 'sync-rooms' });
+
+            const response = await axios.post(
+                `${import.meta.env.VITE_SERVER_URL}/admin-api/rooms/sync`,
+                {},
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    }
+                }
+            );
+
+            toast.success(response.data.message || 'Rooms synced successfully!', { id: 'sync-rooms' });
+            
+            // Refresh the rooms list and stats to show updated occupancy
+            await fetchRooms();
+            await fetchRoomStats();
+            
+            // If a room is currently selected, refresh its student list too
+            if (selectedRoom) {
+                await fetchRoomStudents(selectedRoom.roomNumber);
+            }
+        } catch (err) {
+            console.error('Room sync failed:', err);
+            toast.error(err.response?.data?.message || 'Failed to sync rooms', { id: 'sync-rooms' });
+        } finally {
+            setSyncingRooms(false);
         }
     };
 
@@ -301,6 +337,25 @@ const Rooms = () => {
             <div className="d-flex justify-content-between align-items-center mb-4">
                 <h2>Room Management</h2>
                 <div className="d-flex gap-2">
+                    {/* <button
+                        className="btn btn-success text-nowrap"
+                        onClick={handleSyncRooms}
+                        disabled={syncingRooms}
+                        title="Sync room occupancy with current student assignments"
+                        style={{ whiteSpace: 'nowrap' }}
+                    >
+                        {syncingRooms ? (
+                            <>
+                                <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                Syncing...
+                            </>
+                        ) : (
+                            <>
+                                <i className="bi bi-arrow-repeat me-2"></i>
+                                Sync Rooms
+                            </>
+                        )}
+                    </button> */}
                     <button
                         className="btn btn-primary text-nowrap"
                         onClick={() => setShowForm(!showForm)}

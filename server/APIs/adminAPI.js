@@ -559,6 +559,43 @@ adminApp.get('/pending-outpasses', verifyAdmin, expressAsyncHandler(async (req, 
     }
 }));
 
+// to read all outpasses (for history)
+adminApp.get('/all-outpasses', verifyAdmin, expressAsyncHandler(async (req, res) => {
+    try {
+        // Use aggregation to join with Student collection and get year
+        const outpasses = await Outpass.aggregate([
+            {
+                $sort: { createdAt: -1 }
+            },
+            {
+                $lookup: {
+                    from: 'students', // MongoDB collection name (lowercase + pluralized)
+                    localField: 'rollNumber',
+                    foreignField: 'rollNumber',
+                    as: 'studentInfo'
+                }
+            },
+            {
+                $addFields: {
+                    studentYear: { $arrayElemAt: ['$studentInfo.year', 0] }
+                }
+            },
+            {
+                $project: {
+                    studentInfo: 0 // Remove the studentInfo array to reduce payload size
+                }
+            }
+        ]);
+        
+        // Get unique years from Student collection
+        const uniqueYears = await Student.distinct('year');
+        
+        res.status(200).json({ outpasses, uniqueYears: uniqueYears.sort() });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+}));
+
 
 
 
