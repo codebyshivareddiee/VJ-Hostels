@@ -202,10 +202,18 @@ adminApp.put('/student-delete', verifyAdmin, expressAsyncHandler(async (req, res
 
         const oldRoomNumber = student.room; // Store for auto-sync
 
-        // Clear the student's room and deactivate
-        student.room = "";
-        student.is_active = false;
-        await student.save();
+        // Update the student using findOneAndUpdate to avoid validation issues
+        const updatedStudent = await Student.findOneAndUpdate(
+            { rollNumber },
+            { 
+                room: "",
+                is_active: false
+            },
+            { 
+                new: true,
+                runValidators: false // Skip validation to avoid required field issues
+            }
+        );
 
         // ✅ AUTOMATIC SYNC: Update the room immediately after student deactivation
         if (oldRoomNumber) {
@@ -220,7 +228,7 @@ adminApp.put('/student-delete', verifyAdmin, expressAsyncHandler(async (req, res
 
         res.status(200).json({
             message: "Student deactivated successfully and unassigned from room",
-            student
+            student: updatedStudent
         });
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -238,17 +246,6 @@ adminApp.get('/get-active-students', verifyAdmin, expressAsyncHandler(async (req
     }
 }));
 
-// to get all inactive students
-adminApp.get('/get-inactive-students', verifyAdmin, expressAsyncHandler(async (req, res) => {
-    try {
-        const inactiveStudents = await Student.find({ is_active: false })
-            .sort({ room: 1, rollNumber: 1 }); // Sort by room number, then by roll number
-        res.status(200).json(inactiveStudents);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-}));
-
 // to get student details by roll number
 adminApp.get('/student-details/:rollNumber', verifyAdmin, expressAsyncHandler(async (req, res) => {
     try {
@@ -260,6 +257,44 @@ adminApp.get('/student-details/:rollNumber', verifyAdmin, expressAsyncHandler(as
         }
 
         res.status(200).json(student);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+}));
+
+// Toggle bookmark for a student
+adminApp.put('/toggle-bookmark/:rollNumber', verifyAdmin, expressAsyncHandler(async (req, res) => {
+    try {
+        const { rollNumber } = req.params;
+        
+        const student = await Student.findOne({ rollNumber });
+        if (!student) {
+            return res.status(404).json({ message: "Student not found" });
+        }
+
+        // Toggle the bookmark status
+        student.isBookmarked = !student.isBookmarked;
+        await student.save();
+
+        res.status(200).json({ 
+            message: student.isBookmarked ? "Student bookmarked successfully" : "Student unbookmarked successfully",
+            isBookmarked: student.isBookmarked,
+            student
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+}));
+
+// Get all bookmarked students
+adminApp.get('/get-bookmarked-students', verifyAdmin, expressAsyncHandler(async (req, res) => {
+    try {
+        const bookmarkedStudents = await Student.find({ 
+            is_active: true,
+            isBookmarked: true 
+        }).sort({ name: 1 });
+        
+        res.status(200).json(bookmarkedStudents);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -443,33 +478,6 @@ adminApp.get('/announcements', verifyAdmin, expressAsyncHandler(async (req, res)
         res.status(500).json({ error: error.message });
     }
 }))
-
-
-// // to post community message
-// adminApp.post('/post-community-message', expressAsyncHandler(async (req, res) => {
-//     try {
-//         const { content, images, postedBy, category } = req.body;
-
-//         const newPost = new CommunityPost({ content, images, postedBy, category });
-
-//         await newPost.save();
-
-//         res.status(201).json({ message: "Community message posted successfully", post: newPost });
-//     } catch (error) {
-//         res.status(500).json({ error: error.message });
-//     }
-// }));
-
-// to read community messages
-adminApp.get('/get-community-messages', verifyAdmin, expressAsyncHandler(async (req, res) => {
-    try {
-        const communityPosts = await CommunityPost.find().sort({ createdAt: -1 });
-
-        res.status(200).json(communityPosts);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-}));
 
 
 //  // complaints section

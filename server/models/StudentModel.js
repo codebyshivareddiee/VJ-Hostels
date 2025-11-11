@@ -60,6 +60,10 @@ const studentSchema = new mongoose.Schema({
         type: Boolean,
         default: true
     },
+    isBookmarked: {
+        type: Boolean,
+        default: false
+    },
     room: {
         type: String,
         default: null
