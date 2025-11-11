@@ -272,14 +272,20 @@ adminApp.put('/toggle-bookmark/:rollNumber', verifyAdmin, expressAsyncHandler(as
             return res.status(404).json({ message: "Student not found" });
         }
 
-        // Toggle the bookmark status
-        student.isBookmarked = !student.isBookmarked;
-        await student.save();
+        // Toggle the bookmark status using findOneAndUpdate to avoid validation issues
+        const updatedStudent = await Student.findOneAndUpdate(
+            { rollNumber },
+            { isBookmarked: !student.isBookmarked },
+            { 
+                new: true,
+                runValidators: false // Skip validation to avoid required field issues
+            }
+        );
 
         res.status(200).json({ 
-            message: student.isBookmarked ? "Student bookmarked successfully" : "Student unbookmarked successfully",
-            isBookmarked: student.isBookmarked,
-            student
+            message: updatedStudent.isBookmarked ? "Student bookmarked successfully" : "Student unbookmarked successfully",
+            isBookmarked: updatedStudent.isBookmarked,
+            student: updatedStudent
         });
     } catch (error) {
         res.status(500).json({ error: error.message });

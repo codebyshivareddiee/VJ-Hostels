@@ -8,14 +8,12 @@ import logoDark from "../assets/vnrvjiet-logo.png";
 import logoLight from "../assets/vnrvjiet-logo.png";
 import { useAuthStore } from "../store/authStore";
 import GoogleOAuthButton from "./GoogleOAuthButton";
-import { useAdmin } from "../context/AdminContext";
 import SEO, { SEO_CONFIGS } from "../utils/SEO";
 
 const LoginPage = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { isLoading, error, forceResetAuthState } = useAuthStore();
-  const { login: adminLogin } = useAdmin();
 
   const [theme, setTheme] = useState("dark");
   const isDark = theme === "dark";
@@ -41,7 +39,12 @@ const LoginPage = () => {
       localStorage.setItem("token", token);
       localStorage.setItem("auth-token", token);
       if (role === "security") localStorage.setItem("guard_token", token);
-      if (role === "admin") adminLogin({ role: "admin" }, token);
+      
+      // For admin, we'll let AdminContext fetch the full profile using the token
+      if (role === "admin") {
+        localStorage.setItem("adminToken", token);
+        // AdminContext will automatically fetch profile data on next render
+      }
 
       forceResetAuthState();
       toast.success("Successfully logged in with Google!");
@@ -65,7 +68,7 @@ const LoginPage = () => {
         toast.error("Authentication failed. Please try again.");
       }
     }
-  }, [searchParams, navigate, forceResetAuthState, adminLogin]);
+  }, [searchParams, navigate, forceResetAuthState]);
 
   return (
     <>
