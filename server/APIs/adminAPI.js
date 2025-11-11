@@ -246,17 +246,6 @@ adminApp.get('/get-active-students', verifyAdmin, expressAsyncHandler(async (req
     }
 }));
 
-// to get all inactive students
-adminApp.get('/get-inactive-students', verifyAdmin, expressAsyncHandler(async (req, res) => {
-    try {
-        const inactiveStudents = await Student.find({ is_active: false })
-            .sort({ room: 1, rollNumber: 1 }); // Sort by room number, then by roll number
-        res.status(200).json(inactiveStudents);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-}));
-
 // to get student details by roll number
 adminApp.get('/student-details/:rollNumber', verifyAdmin, expressAsyncHandler(async (req, res) => {
     try {
@@ -268,6 +257,44 @@ adminApp.get('/student-details/:rollNumber', verifyAdmin, expressAsyncHandler(as
         }
 
         res.status(200).json(student);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+}));
+
+// Toggle bookmark for a student
+adminApp.put('/toggle-bookmark/:rollNumber', verifyAdmin, expressAsyncHandler(async (req, res) => {
+    try {
+        const { rollNumber } = req.params;
+        
+        const student = await Student.findOne({ rollNumber });
+        if (!student) {
+            return res.status(404).json({ message: "Student not found" });
+        }
+
+        // Toggle the bookmark status
+        student.isBookmarked = !student.isBookmarked;
+        await student.save();
+
+        res.status(200).json({ 
+            message: student.isBookmarked ? "Student bookmarked successfully" : "Student unbookmarked successfully",
+            isBookmarked: student.isBookmarked,
+            student
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+}));
+
+// Get all bookmarked students
+adminApp.get('/get-bookmarked-students', verifyAdmin, expressAsyncHandler(async (req, res) => {
+    try {
+        const bookmarkedStudents = await Student.find({ 
+            is_active: true,
+            isBookmarked: true 
+        }).sort({ name: 1 });
+        
+        res.status(200).json(bookmarkedStudents);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

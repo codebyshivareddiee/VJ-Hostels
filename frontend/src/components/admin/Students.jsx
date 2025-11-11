@@ -9,8 +9,8 @@ const Students = () => {
     const [students, setStudents] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-    const [activeTab, setActiveTab] = useState('active');
     const [searchTerm, setSearchTerm] = useState('');
+    const [viewMode, setViewMode] = useState('all'); // 'all' or 'bookmarked'
     const { token } = useAdmin();
 
     // For student details modal
@@ -42,7 +42,7 @@ const Students = () => {
 
     useEffect(() => {
         fetchStudents();
-    }, [activeTab, token]);
+    }, [token, viewMode]);
 
     useEffect(() => {
         if (showForm) {
@@ -53,7 +53,7 @@ const Students = () => {
     const fetchStudents = async () => {
         try {
             setLoading(true);
-            const endpoint = activeTab === 'active' ? 'get-active-students' : 'get-inactive-students';
+            const endpoint = viewMode === 'bookmarked' ? 'get-bookmarked-students' : 'get-active-students';
             const response = await axios.get(`${import.meta.env.VITE_SERVER_URL}/admin-api/${endpoint}`, {
                 headers: {
                     Authorization: `Bearer ${token}`
@@ -105,6 +105,25 @@ const Students = () => {
             fetchStudents();
         } catch (err) {
             setError('Failed to deactivate student');
+            console.error(err);
+        }
+    };
+
+    const handleToggleBookmark = async (rollNumber, currentBookmarkStatus) => {
+        try {
+            const response = await axios.put(
+                `${import.meta.env.VITE_SERVER_URL}/admin-api/toggle-bookmark/${rollNumber}`,
+                {},
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    }
+                }
+            );
+            toast.success(response.data.message);
+            fetchStudents();
+        } catch (err) {
+            toast.error('Failed to update bookmark');
             console.error(err);
         }
     };
@@ -208,7 +227,19 @@ const Students = () => {
                 <h2>Student Management</h2>
                 <div className="d-flex gap-2">
                     <button
-                        className="btn btn-primary"
+                        className={`btn ${viewMode === 'all' ? 'btn-primary' : 'btn-outline-primary'}`}
+                        onClick={() => setViewMode('all')}
+                    >
+                        All Students
+                    </button>
+                    <button
+                        className={`btn ${viewMode === 'bookmarked' ? 'btn-warning' : 'btn-outline-warning'}`}
+                        onClick={() => setViewMode('bookmarked')}
+                    >
+                        ⭐ Bookmarked
+                    </button>
+                    <button
+                        className="btn btn-success"
                         onClick={() => setShowForm(!showForm)}
                     >
                         {showForm ? 'Cancel' : 'Register New Student'}
@@ -390,40 +421,6 @@ const Students = () => {
             )}
 
             <div className="card">
-                <div className="card-header bg-light">
-                    <ul className="nav nav-tabs card-header-tabs">
-                        <li className="nav-item">
-                            <button
-                                className={`nav-link ${activeTab === 'active' ? 'active' : ''}`}
-                                onClick={() => setActiveTab('active')}
-                                style={{ 
-                                    backgroundColor: activeTab === 'active' ? '#198754' : '#e9ecef',
-                                    color: activeTab === 'active' ? 'white' : '#495057',
-                                    fontWeight: activeTab === 'active' ? '600' : '500',
-                                    border: 'none',
-                                    borderRadius: '6px 6px 0 0'
-                                }}
-                            >
-                                Active Students
-                            </button>
-                        </li>
-                        <li className="nav-item">
-                            <button
-                                className={`nav-link ${activeTab === 'inactive' ? 'active' : ''}`}
-                                onClick={() => setActiveTab('inactive')}
-                                style={{ 
-                                    backgroundColor: activeTab === 'inactive' ? '#dc3545' : '#e9ecef',
-                                    color: activeTab === 'inactive' ? 'white' : '#495057',
-                                    fontWeight: activeTab === 'inactive' ? '600' : '500',
-                                    border: 'none',
-                                    borderRadius: '6px 6px 0 0'
-                                }}
-                            >
-                                Inactive Students
-                            </button>
-                        </li>
-                    </ul>
-                </div>
                 <div className="card-body">
                     <div className="mb-3">
                         <input
@@ -477,6 +474,13 @@ const Students = () => {
                                             <td>
                                                 <div className="d-flex gap-2">
                                                     <button
+                                                        className={`btn btn-sm ${student.isBookmarked ? 'btn-warning' : 'btn-outline-warning'}`}
+                                                        onClick={() => handleToggleBookmark(student.rollNumber, student.isBookmarked)}
+                                                        title={student.isBookmarked ? 'Remove bookmark' : 'Bookmark student'}
+                                                    >
+                                                        {student.isBookmarked ? '⭐' : '☆'}
+                                                    </button>
+                                                    <button
                                                         className="btn btn-sm btn-info"
                                                         onClick={() => {
                                                             setSelectedRollNumber(student.rollNumber);
@@ -485,14 +489,12 @@ const Students = () => {
                                                     >
                                                         View Details
                                                     </button>
-                                                    {activeTab === 'active' && (
-                                                        <button
-                                                            className="btn btn-sm btn-danger"
-                                                            onClick={() => handleDeactivateStudent(student.rollNumber)}
-                                                        >
-                                                            Deactivate
-                                                        </button>
-                                                    )}
+                                                    <button
+                                                        className="btn btn-sm btn-danger"
+                                                        onClick={() => handleDeactivateStudent(student.rollNumber)}
+                                                    >
+                                                        Deactivate
+                                                    </button>
                                                 </div>
                                             </td>
                                         </tr>
