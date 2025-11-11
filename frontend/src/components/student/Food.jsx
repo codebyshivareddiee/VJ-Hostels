@@ -281,16 +281,22 @@ const Food = () => {
     };
     // --- END: CORE LOGIC & HANDLERS ---
 
-    // Keep the visible star rating in sync with the selected meal.
+    // Keep the visible star rating and feedback text in sync with the selected meal.
     // If the user has previously submitted detailed feedback for the selected meal,
-    // show that rating; otherwise show no filled stars (0).
+    // show that rating and comment; otherwise reset to defaults.
     useEffect(() => {
-        const stored = userFeedbackDetails && userFeedbackDetails[mealType] && userFeedbackDetails[mealType].rating;
-        if (stored != null) {
-            setRating(Number(stored));
+        const stored = userFeedbackDetails && userFeedbackDetails[mealType];
+        if (stored) {
+            if (stored.rating != null) {
+                setRating(Number(stored.rating));
+            }
+            if (stored.feedback != null) {
+                setFeedback(stored.feedback);
+            }
         } else {
-            // don't inherit rating from previously-selected meal; reset to 0
+            // don't inherit from previously-selected meal; reset to defaults
             setRating(0);
+            setFeedback('');
         }
     }, [mealType, userFeedbackDetails]);
 
@@ -768,7 +774,7 @@ const Food = () => {
                             name="feedback"
                             value={feedback}
                             onChange={(value) => setFeedback(value)}
-                            disabled={submitting || !canSubmitFeedback(mealType)}
+                            disabled={submitting || !canSubmitFeedback(mealType) || !!submittedFeedbacks[mealType]}
                             rows={4}
                             placeholder={`Share specific comments about the ${mealType} meal (taste, quantity, quality, etc.)`}
                         />
