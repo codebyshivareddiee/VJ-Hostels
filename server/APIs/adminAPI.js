@@ -202,10 +202,18 @@ adminApp.put('/student-delete', verifyAdmin, expressAsyncHandler(async (req, res
 
         const oldRoomNumber = student.room; // Store for auto-sync
 
-        // Clear the student's room and deactivate
-        student.room = "";
-        student.is_active = false;
-        await student.save();
+        // Update the student using findOneAndUpdate to avoid validation issues
+        const updatedStudent = await Student.findOneAndUpdate(
+            { rollNumber },
+            { 
+                room: "",
+                is_active: false
+            },
+            { 
+                new: true,
+                runValidators: false // Skip validation to avoid required field issues
+            }
+        );
 
         // ✅ AUTOMATIC SYNC: Update the room immediately after student deactivation
         if (oldRoomNumber) {
@@ -220,7 +228,7 @@ adminApp.put('/student-delete', verifyAdmin, expressAsyncHandler(async (req, res
 
         res.status(200).json({
             message: "Student deactivated successfully and unassigned from room",
-            student
+            student: updatedStudent
         });
     } catch (error) {
         res.status(500).json({ error: error.message });
