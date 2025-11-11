@@ -1,18 +1,18 @@
+/* Attendance Component Styles */
 .attendance-wrapper {
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
   padding: 2rem;
 }
 
 .attendance-container {
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
-  padding: 2rem;
-  position: relative;
   overflow: visible;
+  position: relative;
 }
 
-/* Header Styles */
+/* Header - Consistent with Security Modules */
 .attendance-header {
   display: flex;
   justify-content: space-between;
@@ -24,17 +24,20 @@
 
 .attendance-title {
   font-size: 2rem;
-  font-weight: bold;
-  color: #fff;
+  font-weight: 700;
+  color: #333;
   margin: 0;
   display: flex;
   align-items: center;
+  gap: 0.75rem;
+  letter-spacing: -0.5px;
 }
 
 .attendance-subtitle {
-  color: rgba(255, 255, 255, 0.9);
+  color: #666;
   font-size: 1rem;
-  margin: 0.5rem 0 0 0;
+  margin: 0.25rem 0 0 0;
+  opacity: 0.9;
 }
 
 .date-selector {
@@ -80,7 +83,7 @@
 /* Summary Cards */
 .summary-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 1.5rem;
   margin-bottom: 2rem;
 }
@@ -89,9 +92,9 @@
   background: #fff;
   padding: 1.5rem;
   border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   border-left: 4px solid;
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .summary-card:hover {
@@ -142,22 +145,21 @@
 
 .floor-button {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: #fff;
+  color: white;
   border: none;
-  padding: 2rem 1.5rem;
   border-radius: 12px;
+  padding: 2rem;
+  text-align: center;
   cursor: pointer;
   transition: all 0.3s ease;
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+  position: relative;
+  overflow: hidden;
 }
 
 .floor-button:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+  transform: translateY(-4px);
+  box-shadow: 0 8px 16px rgba(102, 126, 234, 0.4);
 }
 
 .floor-button h3 {
@@ -198,14 +200,14 @@
 /* Floor Header - Sticky */
 .floor-header-sticky {
   position: sticky;
-  top: 0;
+  top: 70px; /* Offset for blue navigation bar */
   background: rgba(255, 255, 255, 0.98);
   backdrop-filter: blur(15px);
   border-radius: 0 0 12px 12px;
   padding: 1rem;
   margin: -1rem -1rem 1rem -1rem;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  z-index: 1000;
+  z-index: 999; /* Lower than navigation bar */
 }
 
 .floor-header-top {
@@ -339,8 +341,9 @@
   background: #fff;
   border-radius: 12px;
   padding: 1.5rem;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+  border: 1px solid #f0f0f0;
   width: 100%;
   min-height: fit-content;
 }
@@ -363,6 +366,81 @@
   margin: 0;
   font-size: 1.3rem;
   color: #333;
+}
+
+/* Room Status Indicators */
+.room-title-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.room-status-indicator {
+  display: flex;
+  align-items: center;
+}
+
+.status-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.status-badge.saved {
+  background: linear-gradient(135deg, #4CAF50, #45a049);
+  color: white;
+}
+
+.status-badge.edited {
+  background: linear-gradient(135deg, #FF9800, #F57C00);
+  color: white;
+  animation: pulse 2s infinite;
+}
+
+.status-badge.unmarked {
+  background: linear-gradient(135deg, #9E9E9E, #757575);
+  color: white;
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* Room Card Status Borders */
+.room-card.room-saved {
+  border-left: 4px solid #4CAF50;
+}
+
+.room-card.room-edited {
+  border-left: 4px solid #FF9800;
+  box-shadow: 0 4px 12px rgba(255, 152, 0, 0.2);
+}
+
+.room-card.room-unmarked {
+  border-left: 4px solid #9E9E9E;
+}
+
+/* Pulse animation for edited rooms */
+@keyframes pulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+  100% {
+    opacity: 1;
+  }
 }
 
 /* Students List */
@@ -562,7 +640,7 @@
   }
 
   .summary-grid {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, 1fr);
     gap: 0.5rem;
     margin-bottom: 1rem;
   }
@@ -637,7 +715,7 @@
 /* Extra compact for very small screens */
 @media (max-width: 480px) {
   .summary-grid {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, 1fr);
     gap: 0.5rem;
     margin-bottom: 0.75rem;
   }
@@ -682,6 +760,7 @@
 
   /* Compact header mobile styles */
   .floor-header-sticky {
+    top: 80px; /* Increased offset for mobile navigation bar */
     padding: 0.75rem;
     margin: -1rem -1rem 0.75rem -1rem;
     border-radius: 0 0 8px 8px;
@@ -724,5 +803,35 @@
 
   .search-results-info p {
     font-size: 0.8rem;
+  }
+
+  /* Mobile room status indicators */
+  .room-title-section {
+    flex-direction: row; /* Keep in same row on mobile */
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .status-badge {
+    padding: 0.2rem 0.5rem;
+    font-size: 0.7rem;
+    flex-shrink: 0; /* Prevent badge from shrinking */
+  }
+
+  .room-header h3 {
+    font-size: 1.1rem;
+    flex: 1; /* Allow title to take available space */
+    margin-right: 0.5rem;
+  }
+
+  .status-dot {
+    width: 4px;
+    height: 4px;
+  }
+
+  /* Extra offset for very small mobile screens */
+  .floor-header-sticky {
+    top: 90px; /* Even larger offset for small mobile screens */
   }
 }

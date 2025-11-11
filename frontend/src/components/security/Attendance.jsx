@@ -11,7 +11,8 @@ import {
   Save,
   ArrowLeft,
   AlertCircle,
-  Search
+  Search,
+  Clock
 } from 'lucide-react';
 import axios from 'axios';
 import './AttendanceStyles.css';
@@ -27,6 +28,7 @@ const Attendance = () => {
   const [saving, setSaving] = useState(false);
   const [notification, setNotification] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [editedRooms, setEditedRooms] = useState(new Set()); // Track which rooms have unsaved changes
 
   // Helper function to check if selected date is today
   const isToday = () => {
@@ -34,7 +36,7 @@ const Attendance = () => {
     return selectedDate === today;
   };
 
-  // Filter rooms based on search query
+  // Filter and sort rooms based on search query and status
   const filteredRooms = rooms.filter(room => {
     if (!searchQuery.trim()) return true;
     
@@ -48,6 +50,17 @@ const Attendance = () => {
       student.name.toLowerCase().includes(query) ||
       student.rollNumber.toLowerCase().includes(query)
     );
+  }).sort((a, b) => {
+    // Sort by room status: unmarked first, then marked
+    const aIsMarked = a.isMarked;
+    const bIsMarked = b.isMarked;
+    
+    // If one is unmarked and other is marked, prioritize unmarked
+    if (!aIsMarked && bIsMarked) return -1; // a comes first
+    if (aIsMarked && !bIsMarked) return 1;  // b comes first
+    
+    // If both have same marked status, sort by room number
+    return a.roomNumber.localeCompare(b.roomNumber, undefined, { numeric: true });
   });
 
   useEffect(() => {
@@ -164,6 +177,9 @@ const Attendance = () => {
       }
       
       setRooms(response.data);
+      
+      // Reset edited rooms state for new floor/date (isMarked comes from server)
+      setEditedRooms(new Set());
     } catch (error) {
       console.error('Error fetching rooms:', error);
       console.error('Error details:', {
@@ -197,6 +213,9 @@ const Attendance = () => {
       return room;
     });
     setRooms(updatedRooms);
+    
+    // Mark room as edited (has unsaved changes)
+    setEditedRooms(prev => new Set([...prev, roomId]));
   };
 
   const saveRoomAttendance = async (room) => {
@@ -254,6 +273,16 @@ const Attendance = () => {
       console.log('Save response:', response.data);
 
       showNotification(`Attendance saved for Room ${room.roomNumber}`, 'success');
+      
+      // Remove from edited status and refresh room data to get updated isMarked status
+      setEditedRooms(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(room._id);
+        return newSet;
+      });
+      
+      // Refresh rooms data to get updated isMarked status from server
+      fetchRooms(selectedFloor);
       fetchSummary();
     } catch (error) {
       console.error('Error saving attendance:', error);
@@ -299,6 +328,10 @@ const Attendance = () => {
         return '#2196F3';
       case 'home_pass_used':
         return '#9C27B0';
+      case 'late_pass_approved':
+        return '#FF9800';
+      case 'late_pass_used':
+        return '#795548';
       default:
         return '#757575';
     }
@@ -314,6 +347,10 @@ const Attendance = () => {
         return <Home size={20} />;
       case 'home_pass_used':
         return <LogOut size={20} />;
+      case 'late_pass_approved':
+        return <Clock size={20} />;
+      case 'late_pass_used':
+        return <Clock size={20} />;
       default:
         return <AlertCircle size={20} />;
     }
@@ -375,7 +412,7 @@ const Attendance = () => {
               <div>
                 <p className="summary-label">Absent</p>
                 <h2 className="summary-value">
-                  {summary.totalStudents - summary.statusCounts.present - (summary.statusCounts.home_pass_approved + summary.statusCounts.home_pass_used)}/{summary.totalStudents}
+                  {summary.totalStudents - summary.statusCounts.present - (summary.statusCounts.home_pass_approved + summary.statusCounts.home_pass_used + summary.statusCounts.late_pass_approved + summary.statusCounts.late_pass_used)}/{summary.totalStudents}
                 </h2>
               </div>
               <XCircle size={48} color="#F44336" />
@@ -387,10 +424,22 @@ const Attendance = () => {
               <div>
                 <p className="summary-label">Home Pass</p>
                 <h2 className="summary-value">
-                  {summary.statusCounts.home_pass_approved + summary.statusCounts.home_pass_used}/{summary.totalStudents}
+                  {(summary.statusCounts.home_pass_approved || 0) + (summary.statusCounts.home_pass_used || 0)}/{summary.totalStudents}
                 </h2>
               </div>
               <Home size={48} color="#FF9800" />
+            </div>
+          </div>
+
+          <div className="summary-card" style={{ borderLeftColor: '#9C27B0' }}>
+            <div className="summary-content">
+              <div>
+                <p className="summary-label">Late Pass</p>
+                <h2 className="summary-value">
+                  {(summary.statusCounts.late_pass_approved || 0) + (summary.statusCounts.late_pass_used || 0)}/{summary.totalStudents}
+                </h2>
+              </div>
+              <Clock size={48} color="#9C27B0" />
             </div>
           </div>
         </div>
@@ -405,7 +454,7 @@ const Attendance = () => {
             const floorProgress = summary?.floorProgress?.find(fp => fp.floor === floor._id);
             const percentage = floorProgress?.percentage || 0;
             const marked = floorProgress?.marked || 0;
-            const total = floorProgress?.total || floor.totalOccupants;
+            const total = floorProgress?.total || floor.roomCount;
 
             return (
               <button
@@ -429,7 +478,7 @@ const Attendance = () => {
                   />
                 </div>
                 <p className="floor-progress-text">
-                  {marked} / {total} ({percentage}%)
+                  {marked} / {total} rooms ({percentage}%)
                 </p>
               </button>
             );
@@ -521,11 +570,48 @@ const Attendance = () => {
 
           {/* Rooms Grid */}
           <div className="rooms-grid">
-            {filteredRooms.map((room, roomIndex) => (
-              <div key={room._id} className="room-card">
-                <div className="room-header">
-                  <h3>Room {room.roomNumber}</h3>
-                </div>
+            {filteredRooms.map((room, roomIndex) => {
+              const isSaved = room.isMarked; // Use server-provided status
+              const isEdited = editedRooms.has(room._id);
+              const isUnmarked = !isSaved && !isEdited;
+              
+              // Determine room status class
+              let roomStatusClass = '';
+              if (isEdited) {
+                roomStatusClass = 'room-edited';
+              } else if (isSaved) {
+                roomStatusClass = 'room-saved';
+              } else {
+                roomStatusClass = 'room-unmarked';
+              }
+              
+              return (
+                <div key={room._id} className={`room-card ${roomStatusClass}`}>
+                  <div className="room-header">
+                    <div className="room-title-section">
+                      <h3>Room {room.roomNumber}</h3>
+                      <div className="room-status-indicator">
+                        {isEdited && (
+                          <span className="status-badge edited">
+                            <span className="status-dot"></span>
+                            Edited
+                          </span>
+                        )}
+                        {isSaved && !isEdited && (
+                          <span className="status-badge saved">
+                            <span className="status-dot"></span>
+                            Saved
+                          </span>
+                        )}
+                        {isUnmarked && (
+                          <span className="status-badge unmarked">
+                            <span className="status-dot"></span>
+                            Unmarked
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
 
                 {/* Students List */}
                 <div className="students-list">
@@ -538,10 +624,14 @@ const Attendance = () => {
                         </div>
 
                         {/* Status Buttons - Now inline with name */}
-                        {student.status === 'home_pass_used' ? (
-                          <div className="status-badge" style={{ backgroundColor: getStatusColor('home_pass_used') }}>
-                            {getStatusIcon('home_pass_used')}
-                            <span>On Leave</span>
+                        {(student.status === 'home_pass_used' || student.status === 'home_pass_approved' || 
+                          student.status === 'late_pass_used' || student.status === 'late_pass_approved') ? (
+                          <div className="status-badge" style={{ backgroundColor: getStatusColor(student.status) }}>
+                            {getStatusIcon(student.status)}
+                            <span>
+                              {student.status.includes('home_pass') ? 'Home Pass' : 'Late Pass'}
+                              {student.status.includes('_used') ? ' (Out)' : ' (Approved)'}
+                            </span>
                           </div>
                         ) : (
                           <div className="status-buttons">
@@ -604,7 +694,8 @@ const Attendance = () => {
                   {!isToday() ? 'View Only' : 'Save Room'}
                 </button>
               </div>
-            ))}
+              );
+            })}
           </div>
 
         </>

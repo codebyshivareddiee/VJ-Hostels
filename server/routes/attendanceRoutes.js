@@ -96,7 +96,7 @@ attendanceRouter.get('/floor/:floorNumber/rooms', expressAsyncHandler(async (req
 
     const activeOutpasses = await Outpass.find({
       status: { $in: ['approved', 'out'] },
-      type: 'home pass',
+      type: { $in: ['home pass', 'late pass'] },
       outTime: { $lte: tomorrow },
       inTime: { $gte: today }
     });
@@ -107,15 +107,30 @@ attendanceRouter.get('/floor/:floorNumber/rooms', expressAsyncHandler(async (req
       attendanceMap[record.studentId.toString()] = record.status;
     });
 
-    // Create a map of students with home passes
-    const homePassMap = {};
+    // Create a map of students with outpasses (home pass and late pass)
+    const outpassMap = {};
     activeOutpasses.forEach(pass => {
       const studentKey = pass.rollNumber;
-      homePassMap[studentKey] = {
-        status: pass.status === 'out' ? 'home_pass_used' : 'home_pass_approved',
+      let status;
+      
+      if (pass.type === 'home pass') {
+        status = pass.status === 'out' ? 'home_pass_used' : 'home_pass_approved';
+      } else if (pass.type === 'late pass') {
+        status = pass.status === 'out' ? 'late_pass_used' : 'late_pass_approved';
+      }
+      
+      outpassMap[studentKey] = {
+        status: status,
+        type: pass.type,
         outTime: pass.actualOutTime || pass.outTime,
         inTime: pass.inTime
       };
+    });
+
+    // Create a map of rooms that have been marked (have attendance records for this date)
+    const markedRooms = new Set();
+    attendanceRecords.forEach(record => {
+      markedRooms.add(record.roomNumber);
     });
 
     // Enrich room data with attendance status
@@ -127,9 +142,9 @@ attendanceRouter.get('/floor/:floorNumber/rooms', expressAsyncHandler(async (req
         // Check if student has attendance marked
         let status = attendanceMap[studentId];
         
-        // If no attendance marked, check for home pass
-        if (!status && homePassMap[rollNumber]) {
-          status = homePassMap[rollNumber].status;
+        // If no attendance marked, check for outpass (home pass or late pass)
+        if (!status && outpassMap[rollNumber]) {
+          status = outpassMap[rollNumber].status;
         }
         
         // Default to absent if no status
@@ -144,7 +159,7 @@ attendanceRouter.get('/floor/:floorNumber/rooms', expressAsyncHandler(async (req
           email: student.email,
           phoneNumber: student.phoneNumber,
           status: status,
-          homePassInfo: homePassMap[rollNumber] || null
+          outpassInfo: outpassMap[rollNumber] || null
         };
       });
 
@@ -154,7 +169,8 @@ attendanceRouter.get('/floor/:floorNumber/rooms', expressAsyncHandler(async (req
         floor: room.floor,
         capacity: room.capacity,
         currentOccupancy: room.occupants.length,
-        students: studentsWithStatus
+        students: studentsWithStatus,
+        isMarked: markedRooms.has(room.roomNumber) // Add room save status
       };
     });
 
@@ -367,15 +383,23 @@ attendanceRouter.get('/summary', expressAsyncHandler(async (req, res) => {
       }
     ]);
 
-    // Get floor-wise completion
-    const floorCompletion = await AttendanceRecord.aggregate([
+    // Get floor-wise room coverage (unique rooms that have been marked)
+    const floorRoomCoverage = await AttendanceRecord.aggregate([
       {
         $match: { date: attendanceDate }
       },
       {
         $group: {
-          _id: '$floor',
-          markedCount: { $sum: 1 }
+          _id: { 
+            floor: '$floor',
+            roomNumber: '$roomNumber'
+          }
+        }
+      },
+      {
+        $group: {
+          _id: '$_id.floor',
+          markedRooms: { $sum: 1 }
         }
       },
       {
@@ -383,28 +407,28 @@ attendanceRouter.get('/summary', expressAsyncHandler(async (req, res) => {
       }
     ]);
 
-    // Get total students per floor
-    const floorTotals = await Room.aggregate([
+    // Get total rooms per floor
+    const floorRoomTotals = await Room.aggregate([
       {
         $match: { floor: { $exists: true, $ne: null } }
       },
       {
         $group: {
           _id: '$floor',
-          totalStudents: { $sum: { $size: '$occupants' } }
+          totalRooms: { $sum: 1 }
         }
       }
     ]);
 
     // Merge floor data
     const floorMap = {};
-    floorTotals.forEach(floor => {
-      floorMap[floor._id] = { total: floor.totalStudents, marked: 0 };
+    floorRoomTotals.forEach(floor => {
+      floorMap[floor._id] = { total: floor.totalRooms, marked: 0 };
     });
 
-    floorCompletion.forEach(floor => {
+    floorRoomCoverage.forEach(floor => {
       if (floorMap[floor._id]) {
-        floorMap[floor._id].marked = floor.markedCount;
+        floorMap[floor._id].marked = floor.markedRooms;
       }
     });
 
@@ -422,7 +446,9 @@ attendanceRouter.get('/summary', expressAsyncHandler(async (req, res) => {
       present: 0,
       absent: 0,
       home_pass_approved: 0,
-      home_pass_used: 0
+      home_pass_used: 0,
+      late_pass_approved: 0,
+      late_pass_used: 0
     };
 
     attendanceSummary.forEach(item => {
