@@ -7,6 +7,7 @@ import { Calendar, Clock, ChevronLeft, ChevronRight, X, AlertTriangle } from 'lu
 import './OutpassDateTimePicker.css';
 import { toast } from 'react-hot-toast';
 import { checkOffensiveContent } from '../common/OffensiveTextInput';
+import OutpassOTPVerification from './OutpassOTPVerification';
 
 // Modern DateTime Picker Component
 function DateTimePicker({ selectedDateTime, onConfirm, onClose, minDate }) {
@@ -720,6 +721,9 @@ function Outpass() {
     const [showInTimePicker, setShowInTimePicker] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [offensiveWarning, setOffensiveWarning] = useState(null);
+    const [showOTPVerification, setShowOTPVerification] = useState(false);
+    const [pendingOutpassId, setPendingOutpassId] = useState(null);
+    const [pendingOutpassData, setPendingOutpassData] = useState(null);
 
     const outTime = watch('outTime');
     const inTime = watch('inTime');
@@ -904,13 +908,32 @@ function Outpass() {
             if (payload.outTime instanceof Date) payload.outTime = payload.outTime.toISOString();
             if (payload.inTime instanceof Date) payload.inTime = payload.inTime.toISOString();
 
-            await axios.post(`${import.meta.env.VITE_SERVER_URL}/student-api/apply-outpass`, payload);
-            reset();
+            // Get token from localStorage
+            const token = localStorage.getItem('token');
+            if (!token) {
+                toast.error('Authentication required. Please log in again.');
+                return;
+            }
+
+            // Call new OTP-based apply endpoint with auth header
+            const response = await axios.post(`${import.meta.env.VITE_SERVER_URL}/outpass-api/apply`, payload, {
+                headers: {
+                    Authorization: `Bearer ${token}`
+                }
+            });
+            
+            // Store outpass data and show OTP verification
+            setPendingOutpassId(response.data.outpass._id);
+            setPendingOutpassData(response.data.outpass);
+            setShowOTPVerification(true);
+            
+            toast.success('Outpass created! OTP sent to your parent.');
             setOffensiveWarning(null);
-            window.location.reload();
         } catch (error) {
             console.error('Error:', error);
             toast.error(error.response?.data?.message || 'Failed to submit outpass request');
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -1028,9 +1051,6 @@ function Outpass() {
                         }}
                     />
                     {errors.reason && <span className="error-message">{errors.reason.message}</span>}
-                    <small style={{ display: 'block', marginTop: '0.5rem', color: '#6c757d' }}>
-                        Please provide a clear and appropriate reason. Offensive language, emojis, or gibberish will be rejected.
-                    </small>
                 </div>
 
                 <div className="form-group">
@@ -1072,6 +1092,33 @@ function Outpass() {
                     {isSubmitting ? 'Validating & Submitting...' : 'Submit Outpass Request'}
                 </button>
             </form>
+            
+            {/* OTP Verification Modal */}
+            {showOTPVerification && pendingOutpassId && (
+                <OutpassOTPVerification
+                    outpassId={pendingOutpassId}
+                    parentMobileNumber={user?.parentMobileNumber}
+                    reason={pendingOutpassData?.reason}
+                    outTime={pendingOutpassData?.outTime}
+                    onVerified={(approvedOutpass) => {
+                        toast.success('Parent approval confirmed! Request sent to admin.');
+                        setShowOTPVerification(false);
+                        setPendingOutpassId(null);
+                        setPendingOutpassData(null);
+                        reset();
+                        // Redirect to outpass list after a short delay
+                        setTimeout(() => {
+                            window.location.href = '/student/outpass-list';
+                        }, 1500);
+                    }}
+                    onCancel={() => {
+                        toast.error('Outpass request cancelled.');
+                        setShowOTPVerification(false);
+                        setPendingOutpassId(null);
+                        setPendingOutpassData(null);
+                    }}
+                />
+            )}
             
             <style>
                 {`

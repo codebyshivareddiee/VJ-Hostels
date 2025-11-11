@@ -528,7 +528,7 @@ adminApp.put('/mark-complaint-solved/:id', verifyAdmin, expressAsyncHandler(asyn
 adminApp.put('/update-outpass-status/:id', verifyAdmin, expressAsyncHandler(async (req, res) => {
     try {
         const { id } = req.params;
-        const { status } = req.body;
+        const { status, remarks } = req.body;
         const crypto = require('crypto');
 
         if (!['approved', 'rejected'].includes(status)) {
@@ -540,12 +540,22 @@ adminApp.put('/update-outpass-status/:id', verifyAdmin, expressAsyncHandler(asyn
             return res.status(404).json({ message: "Outpass not found" });
         }
 
-        // Generate QR code if approved
+        // Update adminApproval object
         if (status === 'approved') {
+            // Generate QR code if approved
             const timestamp = Date.now();
             const randomString = crypto.randomBytes(8).toString('hex');
             outpass.qrCodeData = `${outpass._id}-${outpass.rollNumber}-${timestamp}-${randomString}`;
-            outpass.approvedAt = new Date();
+            
+            outpass.adminApproval.status = 'approved';
+            outpass.adminApproval.approvedAt = new Date();
+        } else if (status === 'rejected') {
+            outpass.adminApproval.status = 'rejected';
+            outpass.adminApproval.rejectedAt = new Date();
+            // Store remarks if provided
+            if (remarks) {
+                outpass.adminApproval.remarks = remarks;
+            }
         }
 
         outpass.status = status;
