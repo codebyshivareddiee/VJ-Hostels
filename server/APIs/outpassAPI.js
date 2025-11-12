@@ -48,7 +48,7 @@ function getMealsInTimeWindow(outTime, inTime) {
 outpassApp.put('/approve/:id', verifyAdmin, expressAsyncHandler(async (req, res) => {
     try {
         const { id } = req.params;
-        const { adminName, remarks } = req.body; // Admin's name and remarks from the request
+        const { adminName, rejectionReason } = req.body; // Admin's name and rejection reason from the request
 
         const outpass = await Outpass.findById(id);
         if (!outpass) {
@@ -76,7 +76,7 @@ outpassApp.put('/approve/:id', verifyAdmin, expressAsyncHandler(async (req, res)
         outpass.adminApproval.status = 'approved';
         outpass.adminApproval.approvedBy = adminName || 'Admin';
         outpass.adminApproval.approvedAt = new Date();
-        outpass.adminApproval.remarks = remarks || '';
+        outpass.adminApproval.rejectionReason = rejectionReason || '';
 
         await outpass.save();
         console.log(`✅ Admin approved outpass: ${outpass._id} with QR code`);
@@ -746,32 +746,13 @@ outpassApp.post('/apply', verifyStudent, expressAsyncHandler(async (req, res) =>
         const otp = generateOTP();
         const otpExpiry = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes from now
 
-        // Store OTP (hashed for security)
-        const hashedOTP = crypto.createHash('sha256').update(otp).digest('hex');
-        newOutpass.parentApproval.otp = hashedOTP;
-        newOutpass.parentApproval.otpExpiry = otpExpiry;
-
-        // Save outpass to database first
+        // DO NOT store OTP yet - will be sent when student clicks "Send OTP" button
+        // Just save the outpass without OTP for now
         await newOutpass.save();
         console.log(`✅ Outpass created with ID: ${newOutpass._id}`);
 
-        // Send OTP via SMS to parent
-        try {
-            await sendOTPToParent(parentMobileNumber, otp, name, reason, new Date(outTime));
-            console.log(`✅ OTP sent to parent: ${parentMobileNumber}`);
-        } catch (smsError) {
-            console.error(`❌ Error sending OTP: ${smsError.message}`);
-            // Still return success for outpass creation, but indicate SMS failed
-            return res.status(200).json({
-                message: 'Outpass created but OTP delivery failed',
-                outpass: newOutpass,
-                otpError: smsError.message,
-                showManualOTP: true // Flag to show OTP manually if SMS fails
-            });
-        }
-
         res.status(201).json({
-            message: 'Outpass created successfully. OTP sent to parent.',
+            message: 'Outpass created successfully. Ready to send OTP for parent verification.',
             outpass: {
                 _id: newOutpass._id,
                 name: newOutpass.name,
@@ -781,9 +762,11 @@ outpassApp.post('/apply', verifyStudent, expressAsyncHandler(async (req, res) =>
                 outTime: newOutpass.outTime,
                 inTime: newOutpass.inTime,
                 status: newOutpass.status,
-                parentApprovalStatus: newOutpass.parentApproval.status
+                parentApprovalStatus: newOutpass.parentApproval.status,
+                parentMobileNumber: parentMobileNumber
             },
-            waitingForOTP: true
+            waitingForOTP: true,
+            readyToSendOTP: true // New flag to indicate OTP hasn't been sent yet
         });
     } catch (error) {
         console.error('Error creating outpass:', error);
@@ -860,8 +843,63 @@ outpassApp.post('/verify-parent-otp/:id', expressAsyncHandler(async (req, res) =
     }
 }));
 
+// Send OTP to parent for the first time (when student clicks Send OTP button)
+outpassApp.post('/send-otp/:id', verifyStudent, expressAsyncHandler(async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const outpass = await Outpass.findById(id);
+        if (!outpass) {
+            return res.status(404).json({ message: "Outpass not found" });
+        }
+
+        // Only allow sending if in pending parent approval status
+        if (outpass.status !== 'pending_parent_approval') {
+            return res.status(400).json({ 
+                message: "OTP can only be sent for pending parent approval requests"
+            });
+        }
+
+        // Generate OTP
+        const otp = generateOTP();
+        const otpExpiry = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes from now
+
+        // Store hashed OTP
+        const hashedOTP = crypto.createHash('sha256').update(otp).digest('hex');
+        outpass.parentApproval.otp = hashedOTP;
+        outpass.parentApproval.otpExpiry = otpExpiry;
+        outpass.parentApproval.otpAttempts = 0;
+
+        // Send OTP via SMS to parent
+        try {
+            await sendOTPToParent(outpass.parentMobileNumber, otp, outpass.name, outpass.reason, outpass.outTime);
+            console.log(`✅ OTP sent to parent: ${outpass.parentMobileNumber}`);
+        } catch (smsError) {
+            console.error(`❌ Error sending OTP: ${smsError.message}`);
+            return res.status(500).json({ 
+                message: 'Failed to send OTP to parent',
+                error: smsError.message
+            });
+        }
+
+        await outpass.save();
+
+        res.status(200).json({
+            message: 'OTP sent to parent successfully',
+            outpassId: outpass._id,
+            otpExpiry: otpExpiry,
+            maskedPhone: `***${outpass.parentMobileNumber.slice(-3)}`,
+            otpSentAt: new Date(),
+            otpExpiresIn: 300 // 5 minutes in seconds
+        });
+    } catch (error) {
+        console.error('Error sending OTP:', error);
+        res.status(500).json({ error: error.message });
+    }
+}));
+
 // Resend OTP to parent
-outpassApp.post('/resend-otp/:id', expressAsyncHandler(async (req, res) => {
+outpassApp.post('/resend-otp/:id', verifyStudent, expressAsyncHandler(async (req, res) => {
     try {
         const { id } = req.params;
 
@@ -871,9 +909,10 @@ outpassApp.post('/resend-otp/:id', expressAsyncHandler(async (req, res) => {
         }
 
         // Only allow resend if in pending parent approval status
-        if (outpass.parentApproval.status !== 'pending') {
+        if (outpass.status !== 'pending_parent_approval') {
             return res.status(400).json({ 
-                message: "OTP resend only allowed for pending approvals"
+                message: "OTP resend only allowed for pending parent approval requests",
+                currentStatus: outpass.status
             });
         }
 
@@ -903,7 +942,10 @@ outpassApp.post('/resend-otp/:id', expressAsyncHandler(async (req, res) => {
 
         res.status(200).json({
             message: 'New OTP sent to parent successfully',
-            otpExpiry: newOTPExpiry
+            otpExpiry: newOTPExpiry,
+            otpSentAt: new Date(),
+            otpExpiresIn: 300, // 5 minutes in seconds
+            maskedPhone: `***${outpass.parentMobileNumber.slice(-3)}`
         });
     } catch (error) {
         console.error('Error resending OTP:', error);

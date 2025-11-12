@@ -534,7 +534,7 @@ adminApp.put('/mark-complaint-solved/:id', verifyAdmin, expressAsyncHandler(asyn
 adminApp.put('/update-outpass-status/:id', verifyAdmin, expressAsyncHandler(async (req, res) => {
     try {
         const { id } = req.params;
-        const { status, remarks } = req.body;
+        const { status, rejectionReason } = req.body;
         const crypto = require('crypto');
 
         if (!['approved', 'rejected'].includes(status)) {
@@ -558,9 +558,9 @@ adminApp.put('/update-outpass-status/:id', verifyAdmin, expressAsyncHandler(asyn
         } else if (status === 'rejected') {
             outpass.adminApproval.status = 'rejected';
             outpass.adminApproval.rejectedAt = new Date();
-            // Store remarks if provided
-            if (remarks) {
-                outpass.adminApproval.remarks = remarks;
+            // Store rejection reason if provided
+            if (rejectionReason) {
+                outpass.adminApproval.rejectionReason = rejectionReason;
             }
         }
 

@@ -7,11 +7,12 @@ const OutpassOTPVerification = ({ outpassId, parentMobileNumber, onVerified, onC
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState(false);
-    const [timeLeft, setTimeLeft] = useState(300); // 5 minutes
+    const [timeLeft, setTimeLeft] = useState(0); // Start at 0, will be set when OTP is sent
     const [resendDisabled, setResendDisabled] = useState(false);
     const [resendTimer, setResendTimer] = useState(0);
     const [attemptCount, setAttemptCount] = useState(0);
     const [maxAttempts, setMaxAttempts] = useState(3);
+    const [otpSent, setOtpSent] = useState(false); // New state to track if OTP has been sent
     const otpInputRefs = useRef([]);
 
     // Timer for OTP expiry
@@ -78,7 +79,7 @@ const OutpassOTPVerification = ({ outpassId, parentMobileNumber, onVerified, onC
 
         try {
             const response = await axios.post(
-                `http://localhost:6201/outpass-api/verify-parent-otp/${outpassId}`,
+                `${import.meta.env.VITE_SERVER_URL}/outpass-api/verify-parent-otp/${outpassId}`,
                 { otp: otpString }
             );
 
@@ -108,6 +109,40 @@ const OutpassOTPVerification = ({ outpassId, parentMobileNumber, onVerified, onC
         }
     };
 
+    // Send OTP to parent (when student clicks Send OTP button)
+    const handleSendOTP = async () => {
+        setLoading(true);
+        setError('');
+
+        try {
+            const token = localStorage.getItem('token');
+            const response = await axios.post(
+                `${import.meta.env.VITE_SERVER_URL}/outpass-api/send-otp/${outpassId}`,
+                {},
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    }
+                }
+            );
+
+            setOtpSent(true);
+            setTimeLeft(300); // Set timer to 5 minutes
+            setOtp(['', '', '', '', '', '']); // Clear any existing input
+            setError('');
+            
+            // Auto-focus first input
+            setTimeout(() => {
+                otpInputRefs.current[0]?.focus();
+            }, 100);
+        } catch (err) {
+            const errorMessage = err.response?.data?.message || 'Failed to send OTP';
+            setError(errorMessage);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     // Resend OTP
     const handleResendOTP = async () => {
         setLoading(true);
@@ -115,7 +150,7 @@ const OutpassOTPVerification = ({ outpassId, parentMobileNumber, onVerified, onC
 
         try {
             await axios.post(
-                `http://localhost:6201/outpass-api/resend-otp/${outpassId}`
+                `${import.meta.env.VITE_SERVER_URL}/outpass-api/resend-otp/${outpassId}`
             );
 
             setSuccess(false);
@@ -181,73 +216,114 @@ const OutpassOTPVerification = ({ outpassId, parentMobileNumber, onVerified, onC
                 {/* OTP Input Form */}
                 {!success && (
                     <>
-                        <div className="otp-info">
-                            <p>We've sent a 6-digit OTP to your parent's phone ending in <strong>{maskedPhone}</strong></p>
-                            <p className="otp-info-secondary">Please ask your parent to check their SMS and enter the code below</p>
-                        </div>
+                        {/* Section 1: Show if OTP hasn't been sent yet */}
+                        {!otpSent && (
+                            <>
+                                <div className="otp-info">
+                                    <p>We will send a 6-digit OTP to your parent's phone ending in <strong>{maskedPhone}</strong></p>
+                                    <p className="otp-info-secondary">Click the button below to send the OTP for verification</p>
+                                </div>
 
-                        {error && <div className="otp-error">{error}</div>}
+                                {error && <div className="otp-error">{error}</div>}
 
-                        {/* OTP Input Fields */}
-                        <div className="otp-input-group">
-                            {otp.map((digit, index) => (
-                                <input
-                                    key={index}
-                                    ref={(el) => (otpInputRefs.current[index] = el)}
-                                    type="text"
-                                    inputMode="numeric"
-                                    maxLength="1"
-                                    value={digit}
-                                    onChange={(e) => handleOTPChange(index, e.target.value)}
-                                    onKeyDown={(e) => handleKeyDown(index, e)}
-                                    className={`otp-input ${error && 'error'}`}
-                                    placeholder="—"
-                                    disabled={loading || timeLeft <= 0}
-                                />
-                            ))}
-                        </div>
+                                <button
+                                    onClick={handleSendOTP}
+                                    disabled={loading}
+                                    className="otp-verify-btn"
+                                    style={{ marginBottom: '1rem' }}
+                                >
+                                    {loading ? 'Sending OTP...' : '📱 Send OTP to Parent'}
+                                </button>
 
-                        {/* Attempt Counter */}
-                        {attemptCount > 0 && (
-                            <div className="attempt-counter">
-                                ⚠️ Attempt {attemptCount} of {maxAttempts}
-                            </div>
+                                {/* Cancel Option */}
+                                <button
+                                    onClick={onCancel}
+                                    disabled={loading}
+                                    className="otp-cancel-btn"
+                                >
+                                    Cancel Request
+                                </button>
+                            </>
                         )}
 
-                        {/* Timer */}
-                        <div className={`otp-timer ${timeLeft < 60 ? 'warning' : ''}`}>
-                            ⏱️ OTP expires in: <strong>{formatTime(timeLeft)}</strong>
-                        </div>
+                        {/* Section 2: Show if OTP has been sent */}
+                        {otpSent && (
+                            <>
+                                <div className="otp-info">
+                                    <p>OTP has been sent to your parent's phone ending in <strong>{maskedPhone}</strong></p>
+                                    <p className="otp-info-secondary">Please ask your parent to check their SMS and enter the code below</p>
+                                </div>
 
-                        {/* Verify Button */}
-                        <button
-                            onClick={handleVerifyOTP}
-                            disabled={loading || timeLeft <= 0}
-                            className="otp-verify-btn"
-                        >
-                            {loading ? 'Verifying...' : 'Verify OTP'}
-                        </button>
+                                {error && <div className="otp-error">{error}</div>}
 
-                        {/* Resend Option */}
-                        <div className="otp-resend-section">
-                            <p>Didn't receive the OTP?</p>
-                            <button
-                                onClick={handleResendOTP}
-                                disabled={resendDisabled || loading}
-                                className="otp-resend-btn"
-                            >
-                                {resendDisabled ? `Resend in ${resendTimer}s` : 'Resend OTP'}
-                            </button>
-                        </div>
+                                {/* OTP Input Fields */}
+                                <div className="otp-input-group">
+                                    {otp.map((digit, index) => (
+                                        <input
+                                            key={index}
+                                            ref={(el) => (otpInputRefs.current[index] = el)}
+                                            type="text"
+                                            inputMode="numeric"
+                                            maxLength="1"
+                                            value={digit}
+                                            onChange={(e) => handleOTPChange(index, e.target.value)}
+                                            onKeyDown={(e) => handleKeyDown(index, e)}
+                                            className={`otp-input ${error && 'error'}`}
+                                            placeholder="—"
+                                            disabled={loading || timeLeft <= 0}
+                                        />
+                                    ))}
+                                </div>
 
-                        {/* Cancel Option */}
-                        <button
-                            onClick={onCancel}
-                            disabled={loading}
-                            className="otp-cancel-btn"
-                        >
-                            Cancel Request
-                        </button>
+                                {/* Attempt Counter */}
+                                {attemptCount > 0 && (
+                                    <div className="attempt-counter">
+                                        ⚠️ Attempt {attemptCount} of {maxAttempts}
+                                    </div>
+                                )}
+
+                                {/* Timer */}
+                                {timeLeft > 0 && (
+                                    <div className={`otp-timer ${timeLeft < 60 ? 'warning' : ''}`}>
+                                        ⏱️ OTP expires in: <strong>{formatTime(timeLeft)}</strong>
+                                    </div>
+                                )}
+
+                                {timeLeft <= 0 && (
+                                    <div className="otp-error">OTP has expired. Please click Resend OTP.</div>
+                                )}
+
+                                {/* Verify Button */}
+                                <button
+                                    onClick={handleVerifyOTP}
+                                    disabled={loading || timeLeft <= 0}
+                                    className="otp-verify-btn"
+                                >
+                                    {loading ? 'Verifying...' : 'Verify OTP'}
+                                </button>
+
+                                {/* Resend Option */}
+                                <div className="otp-resend-section">
+                                    <p>Didn't receive the OTP?</p>
+                                    <button
+                                        onClick={handleResendOTP}
+                                        disabled={resendDisabled || loading}
+                                        className="otp-resend-btn"
+                                    >
+                                        {resendDisabled ? `Resend in ${resendTimer}s` : 'Resend OTP'}
+                                    </button>
+                                </div>
+
+                                {/* Cancel Option */}
+                                <button
+                                    onClick={onCancel}
+                                    disabled={loading}
+                                    className="otp-cancel-btn"
+                                >
+                                    Cancel Request
+                                </button>
+                            </>
+                        )}
                     </>
                 )}
             </div>

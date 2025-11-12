@@ -254,195 +254,159 @@ const OutpassList = () => {
                                     {/* Out Time */}
                                     <div style={{
                                         display: 'flex',
-                                        alignItems: 'flex-start',
-                                        gap: '0.75rem',
-                                        marginBottom: '0.9rem'
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        marginBottom: '1rem',
+                                        paddingBottom: '1rem',
+                                        borderBottom: '1px solid #e9ecef'
                                     }}>
                                         <div style={{
-                                            width: '38px',
-                                            height: '38px',
-                                            borderRadius: '8px',
-                                            backgroundColor: '#f8f9fa',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            flexShrink: 0
+                                            fontSize: '0.7rem',
+                                            fontWeight: '600',
+                                            color: '#6c757d',
+                                            textTransform: 'uppercase',
+                                            letterSpacing: '0.05em'
                                         }}>
-                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                                                <path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" 
-                                                      stroke="#6c757d" strokeWidth="2" strokeLinecap="round"/>
-                                            </svg>
+                                            Out Time
                                         </div>
-                                        <div style={{ flex: 1 }}>
-                                            <div style={{
-                                                fontSize: '0.7rem',
-                                                fontWeight: '600',
-                                                color: '#6c757d',
-                                                textTransform: 'uppercase',
-                                                letterSpacing: '0.05em',
-                                                marginBottom: '0.25rem'
-                                            }}>
-                                                Out Time
-                                            </div>
-                                            <div style={{
-                                                fontSize: '0.9rem',
-                                                fontWeight: '500',
-                                                color: '#212529'
-                                            }}>
-                                                {new Date(outpass.outTime).toLocaleString('en-US', {
-                                                    month: 'short',
-                                                    day: 'numeric',
-                                                    year: 'numeric',
-                                                    hour: 'numeric',
-                                                    minute: '2-digit',
-                                                    hour12: true
-                                                })}
-                                            </div>
+                                        <div style={{
+                                            fontSize: '0.85rem',
+                                            fontWeight: '500',
+                                            color: '#212529',
+                                            textAlign: 'right'
+                                        }}>
+                                            {new Date(outpass.outTime).toLocaleString('en-US', {
+                                                month: 'short',
+                                                day: 'numeric',
+                                                year: 'numeric',
+                                                hour: 'numeric',
+                                                minute: '2-digit',
+                                                hour12: true
+                                            })}
                                         </div>
                                     </div>
 
                                     {/* In Time */}
                                     <div style={{
                                         display: 'flex',
-                                        alignItems: 'flex-start',
-                                        gap: '0.75rem',
-                                        marginBottom: '0.9rem'
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        marginBottom: '1rem',
+                                        paddingBottom: '1rem',
+                                        borderBottom: '1px solid #e9ecef'
                                     }}>
                                         <div style={{
-                                            width: '38px',
-                                            height: '38px',
-                                            borderRadius: '8px',
-                                            backgroundColor: '#f8f9fa',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            flexShrink: 0
+                                            fontSize: '0.7rem',
+                                            fontWeight: '600',
+                                            color: '#6c757d',
+                                            textTransform: 'uppercase',
+                                            letterSpacing: '0.05em'
                                         }}>
-                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                                                <path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" 
-                                                      stroke="#6c757d" strokeWidth="2" strokeLinecap="round"/>
-                                            </svg>
+                                            In Time
                                         </div>
-                                        <div style={{ flex: 1 }}>
-                                            <div style={{
-                                                fontSize: '0.7rem',
-                                                fontWeight: '600',
-                                                color: '#6c757d',
-                                                textTransform: 'uppercase',
-                                                letterSpacing: '0.05em',
-                                                marginBottom: '0.25rem'
-                                            }}>
-                                                In Time
-                                            </div>
-                                            <div style={{
-                                                fontSize: '0.9rem',
-                                                fontWeight: '500',
-                                                color: '#212529'
-                                            }}>
-                                                {new Date(outpass.inTime).toLocaleString('en-US', {
-                                                    month: 'short',
-                                                    day: 'numeric',
-                                                    year: 'numeric',
-                                                    hour: 'numeric',
-                                                    minute: '2-digit',
-                                                    hour12: true
-                                                })}
-                                            </div>
+                                        <div style={{
+                                            fontSize: '0.85rem',
+                                            fontWeight: '500',
+                                            color: '#212529',
+                                            textAlign: 'right'
+                                        }}>
+                                            {new Date(outpass.inTime).toLocaleString('en-US', {
+                                                month: 'short',
+                                                day: 'numeric',
+                                                year: 'numeric',
+                                                hour: 'numeric',
+                                                minute: '2-digit',
+                                                hour12: true
+                                            })}
                                         </div>
                                     </div>
-
-                                    {/* Divider */}
-                                    <div style={{
-                                        height: '1px',
-                                        backgroundColor: '#e9ecef',
-                                        margin: '1rem 0'
-                                    }}></div>
 
                                     {/* Reason */}
                                     <div style={{
                                         display: 'flex',
+                                        justifyContent: 'space-between',
                                         alignItems: 'flex-start',
-                                        gap: '0.75rem',
-                                        marginBottom: '0.9rem'
+                                        marginBottom: '1rem',
+                                        paddingBottom: '1rem',
+                                        borderBottom: '1px solid #e9ecef',
+                                        gap: '1rem'
                                     }}>
                                         <div style={{
-                                            width: '38px',
-                                            height: '38px',
-                                            borderRadius: '8px',
-                                            backgroundColor: '#f8f9fa',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
+                                            fontSize: '0.7rem',
+                                            fontWeight: '600',
+                                            color: '#6c757d',
+                                            textTransform: 'uppercase',
+                                            letterSpacing: '0.05em',
                                             flexShrink: 0
                                         }}>
-                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                                                <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" 
-                                                      stroke="#6c757d" strokeWidth="2" strokeLinecap="round"/>
-                                            </svg>
+                                            Reason
                                         </div>
-                                        <div style={{ flex: 1 }}>
-                                            <div style={{
-                                                fontSize: '0.7rem',
-                                                fontWeight: '600',
-                                                color: '#6c757d',
-                                                textTransform: 'uppercase',
-                                                letterSpacing: '0.05em',
-                                                marginBottom: '0.25rem'
-                                            }}>
-                                                Reason
-                                            </div>
-                                            <div style={{
-                                                fontSize: '0.9rem',
-                                                fontWeight: '500',
-                                                color: '#212529',
-                                                wordBreak: 'break-word'
-                                            }}>
-                                                {outpass.reason}
-                                            </div>
+                                        <div style={{
+                                            fontSize: '0.85rem',
+                                            fontWeight: '500',
+                                            color: '#212529',
+                                            textAlign: 'right',
+                                            wordBreak: 'break-word'
+                                        }}>
+                                            {outpass.reason}
                                         </div>
                                     </div>
 
                                     {/* Type */}
                                     <div style={{
                                         display: 'flex',
-                                        alignItems: 'flex-start',
-                                        gap: '0.75rem'
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        marginBottom: outpass.status === "rejected" && (outpass.adminApproval?.rejectionReason || outpass.parentApproval?.rejectionReason) ? '1rem' : 0,
+                                        paddingBottom: outpass.status === "rejected" && (outpass.adminApproval?.rejectionReason || outpass.parentApproval?.rejectionReason) ? '1rem' : 0,
+                                        borderBottom: outpass.status === "rejected" && (outpass.adminApproval?.rejectionReason || outpass.parentApproval?.rejectionReason) ? '1px solid #e9ecef' : 'none'
                                     }}>
                                         <div style={{
-                                            width: '38px',
-                                            height: '38px',
-                                            borderRadius: '8px',
-                                            backgroundColor: '#f8f9fa',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            flexShrink: 0
+                                            fontSize: '0.7rem',
+                                            fontWeight: '600',
+                                            color: '#6c757d',
+                                            textTransform: 'uppercase',
+                                            letterSpacing: '0.05em'
                                         }}>
-                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                                                <path d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" 
-                                                      stroke="#6c757d" strokeWidth="2" strokeLinecap="round"/>
-                                            </svg>
+                                            Type
                                         </div>
-                                        <div style={{ flex: 1 }}>
+                                        <div style={{
+                                            fontSize: '0.85rem',
+                                            fontWeight: '500',
+                                            color: '#212529',
+                                            textAlign: 'right'
+                                        }}>
+                                            {outpass.type}
+                                        </div>
+                                    </div>
+                                    {outpass.status === "rejected" && (outpass.adminApproval?.rejectionReason || outpass.parentApproval?.rejectionReason) && (
+                                        <div style={{
+                                            backgroundColor: '#fff5f5',
+                                            border: '1px solid #f5c6cb',
+                                            borderRadius: '6px',
+                                            padding: '0.75rem',
+                                            marginTop: '1rem'
+                                        }}>
                                             <div style={{
                                                 fontSize: '0.7rem',
                                                 fontWeight: '600',
-                                                color: '#6c757d',
+                                                color: '#721c24',
                                                 textTransform: 'uppercase',
                                                 letterSpacing: '0.05em',
-                                                marginBottom: '0.25rem'
+                                                marginBottom: '0.5rem'
                                             }}>
-                                                Type
+                                                Rejection Reason
                                             </div>
                                             <div style={{
-                                                fontSize: '0.9rem',
+                                                fontSize: '0.85rem',
                                                 fontWeight: '500',
-                                                color: '#212529'
+                                                color: '#721c24',
+                                                wordBreak: 'break-word'
                                             }}>
-                                                {outpass.type}
+                                                {outpass.adminApproval?.rejectionReason || outpass.parentApproval?.rejectionReason || 'Rejected'}
                                             </div>
                                         </div>
-                                    </div>
+                                    )}
                                 </div>
                             </div>
                         );

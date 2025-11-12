@@ -49,8 +49,7 @@ const outpassSchema = new mongoose.Schema({
         approvedAt: { type: Date }, // When admin approved
         rejectedBy: { type: String }, // Admin ID/email who rejected
         rejectedAt: { type: Date }, // When admin rejected
-        rejectionReason: { type: String }, // Why admin rejected
-        remarks: { type: String } // Admin remarks
+        rejectionReason: { type: String } // Why admin rejected
     },
     
     // ===== QR CODE & TRACKING =====
