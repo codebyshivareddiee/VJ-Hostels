@@ -720,6 +720,18 @@ function Outpass() {
     const [showInTimePicker, setShowInTimePicker] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [offensiveWarning, setOffensiveWarning] = useState(null);
+    const [showOTPVerification, setShowOTPVerification] = useState(false);
+    const [pendingOutpassId, setPendingOutpassId] = useState(null);
+    const [pendingOutpassData, setPendingOutpassData] = useState(null);
+    const [otpSent, setOtpSent] = useState(false);
+    const [otpValue, setOtpValue] = useState('');
+    const [otpLoading, setOtpLoading] = useState(false);
+    const [otpError, setOtpError] = useState('');
+    const [otpSuccess, setOtpSuccess] = useState(false);
+    const [otpTimer, setOtpTimer] = useState(0);
+    const [otpAttempts, setOtpAttempts] = useState(0);
+    const [otpExpiry, setOtpExpiry] = useState(null);
+    const [fetchingOtpStatus, setFetchingOtpStatus] = useState(false);
 
     const outTime = watch('outTime');
     const inTime = watch('inTime');
@@ -765,11 +777,24 @@ function Outpass() {
                 }
 
                 const pendingPasses = response.data.studentOutpasses?.filter(
-                    pass => pass.status === 'pending'
+                    pass => pass.status === 'pending' || pass.status === 'pending_parent_approval' || pass.status === 'pending_admin_approval'
                 ) || [];
                 
                 if (pendingPasses.length > 0) {
-                    setPendingPass(pendingPasses[0]);
+                    const pendingP = pendingPasses[0];
+                    setPendingPass(pendingP);
+                    
+                    // If OTP has been sent, check and set the expiry
+                    if (pendingP.parentApproval?.otpExpiry) {
+                        const expiryTime = new Date(pendingP.parentApproval.otpExpiry).getTime();
+                        setOtpExpiry(expiryTime);
+                        setOtpSent(true);
+                        
+                        // Calculate remaining time
+                        const now = Date.now();
+                        const remainingTime = Math.max(0, Math.floor((expiryTime - now) / 1000));
+                        setOtpTimer(remainingTime);
+                    }
                 }
             } catch (error) {
                 console.error('Error checking for active pass:', error);
@@ -782,6 +807,121 @@ function Outpass() {
             checkForActivePass();
         }
     }, [user]);
+
+    // OTP Timer effect - calculates timer from otpExpiry
+    useEffect(() => {
+        if (!otpExpiry || !otpSent) return;
+
+        const updateTimer = () => {
+            const now = Date.now();
+            const expiryTime = otpExpiry;
+            const remainingSeconds = Math.max(0, Math.floor((expiryTime - now) / 1000));
+            
+            // Cap timer to 5 minutes (300 seconds)
+            const calculatedTimer = Math.min(300, remainingSeconds);
+            setOtpTimer(calculatedTimer);
+        };
+
+        // Update immediately
+        updateTimer();
+
+        // Update every second
+        const interval = setInterval(updateTimer, 1000);
+        return () => clearInterval(interval);
+    }, [otpExpiry, otpSent]);
+
+    // Format time helper
+    const formatTime = (seconds) => {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    };
+
+    // Handle Send OTP - at top level
+    const handleSendOTP = async () => {
+        try {
+            setOtpLoading(true);
+            setOtpError('');
+            const token = localStorage.getItem('token');
+            
+            const response = await axios.post(
+                `${import.meta.env.VITE_SERVER_URL}/outpass-api/send-otp/${pendingPass._id}`,
+                {},
+                {
+                    headers: { Authorization: `Bearer ${token}` }
+                }
+            );
+            
+            setOtpSent(true);
+            const expiryTime = new Date(response.data.otpExpiry).getTime();
+            setOtpExpiry(expiryTime);
+            setOtpTimer(300); // 5 minutes
+            setOtpValue('');
+            setOtpAttempts(0);
+            toast.success('OTP sent to parent successfully!');
+        } catch (error) {
+            setOtpError(error.response?.data?.message || 'Failed to send OTP');
+            toast.error('Failed to send OTP');
+        } finally {
+            setOtpLoading(false);
+        }
+    };
+
+    // Handle Verify OTP - at top level
+    const handleVerifyOTP = async () => {
+        try {
+            if (!otpValue || otpValue.length !== 6) {
+                setOtpError('Please enter a valid 6-digit OTP');
+                return;
+            }
+
+            setOtpLoading(true);
+            setOtpError('');
+            
+            const response = await axios.post(
+                `${import.meta.env.VITE_SERVER_URL}/outpass-api/verify-parent-otp/${pendingPass._id}`,
+                { otp: otpValue }
+            );
+            
+            setOtpSuccess(true);
+            toast.success('OTP verified successfully!');
+            setTimeout(() => {
+                window.location.reload();
+            }, 2000);
+        } catch (error) {
+            const newAttempts = otpAttempts + 1;
+            setOtpAttempts(newAttempts);
+            setOtpError(error.response?.data?.message || 'Invalid OTP');
+            setOtpValue('');
+            toast.error('Invalid OTP. Please try again.');
+        } finally {
+            setOtpLoading(false);
+        }
+    };
+
+    // Handle Resend OTP - at top level
+    const handleResendOTP = async () => {
+        try {
+            setOtpLoading(true);
+            setOtpError('');
+            
+            const response = await axios.post(
+                `${import.meta.env.VITE_SERVER_URL}/outpass-api/resend-otp/${pendingPass._id}`
+            );
+            
+            const expiryTime = new Date(response.data.otpExpiry).getTime();
+            setOtpExpiry(expiryTime);
+            setOtpTimer(300); // Reset to 5 minutes
+            setOtpValue('');
+            setOtpAttempts(0);
+            toast.success('New OTP sent to parent successfully!');
+        } catch (error) {
+            setOtpError(error.response?.data?.message || 'Failed to resend OTP');
+            toast.error('Failed to resend OTP');
+        } finally {
+            setOtpLoading(false);
+        }
+    };
 
     if (loading || checkingActivePass) {
         return (
@@ -823,24 +963,361 @@ function Outpass() {
         );
     }
 
-    if (pendingPass && !activePass) {
+    // Show message for pending_admin_approval (after parent verified OTP) - same as active pass blocking
+    if (pendingPass && pendingPass.status === 'pending_admin_approval' && !activePass) {
         return (
             <div className="form-container responsive-form">
                 <div style={{
-                    backgroundColor: '#d1ecf1',
-                    border: '1px solid #0c5460',
+                    backgroundColor: '#e8f5e9',
+                    border: '1px solid #81c784',
                     borderRadius: '8px',
                     padding: '1.5rem',
                     marginBottom: '1rem'
                 }}>
-                    <h3 style={{ color: '#0c5460', marginBottom: '1rem' }}>
-                        Pending Pass Request
+                    <h3 style={{ color: '#2e7d32', marginBottom: '1rem' }}>
+                        ✅ Pass Under Admin Review
                     </h3>
-                    <p style={{ color: '#0c5460' }}>
-                        You have a pending <strong>{pendingPass.type}</strong> request awaiting approval.
+                    <p style={{ color: '#2e7d32', marginBottom: '0.5rem' }}>
+                        Your <strong>{pendingPass.type}</strong> has been approved by your parent and is now waiting for admin approval.
                     </p>
+                    <p style={{ color: '#2e7d32', marginBottom: '0.5rem' }}>
+                        You can only have one active pass at a time.
+                    </p>
+                    <hr style={{ borderColor: '#81c784', opacity: 0.3 }} />
+                    <h5 style={{ color: '#2e7d32', marginTop: '1rem', marginBottom: '0.5rem' }}>
+                        📋 Request Details
+                    </h5>
+                    <div style={{ color: '#2e7d32', fontSize: '0.95rem' }}>
+                        <p><strong>Type:</strong> {pendingPass.type}</p>
+                        <p><strong>Reason:</strong> {pendingPass.reason}</p>
+                        <p><strong>Out Time:</strong> {new Date(pendingPass.outTime).toLocaleString('en-IN', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            hour12: true
+                        })}</p>
+                        <p><strong>In Time:</strong> {new Date(pendingPass.inTime).toLocaleString('en-IN', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            hour12: true
+                        })}</p>
+                    </div>
                 </div>
             </div>
+        );
+    }
+
+    // Show OTP section only for pending_parent_approval
+    if (pendingPass && pendingPass.status === 'pending_parent_approval' && !activePass) {
+        return (
+            <div className="form-container responsive-form">
+                <div style={{
+                    backgroundColor: '#fff8e1',
+                    border: '1px solid #ffe082',
+                    borderRadius: '8px',
+                    padding: '1.5rem',
+                    marginBottom: '1.5rem'
+                }}>
+                    <h5 style={{ color: '#f57f17', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        ℹ️ Two-Stage Approval Process
+                    </h5>
+                    <div style={{ color: '#f57f17', fontSize: '0.95rem', lineHeight: '1.6' }}>
+                        <p style={{ margin: '0 0 0.75rem 0' }}>
+                            Your outpass request requires approval from <strong>both parent and admin</strong>:
+                        </p>
+                        <ol style={{ margin: '0.5rem 0 0.75rem 1.5rem', paddingLeft: 0 }}>
+                            <li style={{ marginBottom: '0.5rem' }}>
+                                <strong>Parent Approval:</strong> Your parent needs to verify and approve via OTP
+                            </li>
+                            <li style={{ marginBottom: '0.5rem' }}>
+                                <strong>Admin Approval:</strong> After parent approval, admin will review and approve
+                            </li>
+                        </ol>
+                        <hr style={{ borderColor: '#ffe082', opacity: 0.5, margin: '0.75rem 0' }} />
+                        <p style={{ margin: '0.75rem 0 0 0', fontSize: '0.9rem' }}>
+                            ❌ <strong>Note:</strong> Admin approval cannot be done directly by you. Please follow the standard two-stage process. If you have any issues, contact the admin.
+                        </p>
+                    </div>
+                </div>
+
+                <div style={{
+                        backgroundColor: '#f8f9fa',
+                        border: '1px solid #dee2e6',
+                        borderRadius: '8px',
+                        padding: '1.5rem'
+                    }}>
+                        <h5 style={{ color: '#495057', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            📱 Parent Verification via OTP
+                        </h5>
+
+                        {/* Ternary: Check if OTP is expired (otpTimer === 0 and otpSent) */}
+                        {otpSent && otpTimer === 0 ? (
+                            // OTP EXPIRED - Show Send OTP button
+                            <>
+                                <div style={{
+                                    backgroundColor: '#e3f2fd',
+                                    border: '1px solid #90caf9',
+                                    borderRadius: '6px',
+                                    padding: '1rem',
+                                    marginBottom: '1rem',
+                                    color: '#1976d2'
+                                }}>
+                                    <p style={{ margin: 0, fontSize: '0.95rem' }}>
+                                        We will send a 6-digit OTP to your parent's phone ending in <strong>***{pendingPass.parentMobileNumber?.slice(-3)}</strong>
+                                    </p>
+                                    <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.9rem' }}>
+                                        Click the button below to send OTP for verification
+                                    </p>
+                                </div>
+
+                                {otpError && (
+                                    <div style={{
+                                        backgroundColor: '#ffebee',
+                                        border: '1px solid #ef5350',
+                                        borderRadius: '6px',
+                                        padding: '0.75rem',
+                                        marginBottom: '1rem',
+                                        color: '#c62828',
+                                        fontSize: '0.9rem'
+                                    }}>
+                                        ⚠️ {otpError}
+                                    </div>
+                                )}
+
+                                <button
+                                    onClick={handleSendOTP}
+                                    disabled={otpLoading}
+                                    style={{
+                                        width: '100%',
+                                        padding: '0.75rem 1rem',
+                                        backgroundColor: '#667eea',
+                                        color: 'white',
+                                        border: 'none',
+                                        borderRadius: '6px',
+                                        fontSize: '1rem',
+                                        fontWeight: '600',
+                                        cursor: otpLoading ? 'not-allowed' : 'pointer',
+                                        opacity: otpLoading ? 0.7 : 1,
+                                        transition: 'all 0.3s ease'
+                                    }}
+                                >
+                                    {otpLoading ? '⏳ Sending OTP...' : '📱 Send OTP to Parent'}
+                                </button>
+                            </>
+                        ) : otpSent && otpTimer > 0 ? (
+                            // OTP ACTIVE & NOT EXPIRED - Show OTP input & timer
+                            <>
+                                <div style={{
+                                    backgroundColor: '#e8f5e9',
+                                    border: '1px solid #81c784',
+                                    borderRadius: '6px',
+                                    padding: '1rem',
+                                    marginBottom: '1rem',
+                                    color: '#2e7d32'
+                                }}>
+                                    <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: '600' }}>
+                                        ✅ OTP sent to your parent's phone ending in <strong>***{pendingPass.parentMobileNumber?.slice(-3)}</strong>
+                                    </p>
+                                    <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.9rem' }}>
+                                        Please ask your parent to check their SMS
+                                    </p>
+                                </div>
+
+                                {otpError && (
+                                    <div style={{
+                                        backgroundColor: '#ffebee',
+                                        border: '1px solid #ef5350',
+                                        borderRadius: '6px',
+                                        padding: '0.75rem',
+                                        marginBottom: '1rem',
+                                        color: '#c62828',
+                                        fontSize: '0.9rem'
+                                    }}>
+                                        ⚠️ {otpError}
+                                    </div>
+                                )}
+
+                                {otpSuccess ? (
+                                    <div style={{
+                                        backgroundColor: '#e8f5e9',
+                                        border: '1px solid #81c784',
+                                        borderRadius: '6px',
+                                        padding: '1.5rem',
+                                        textAlign: 'center',
+                                        color: '#2e7d32'
+                                    }}>
+                                        <h4 style={{ margin: '0 0 0.5rem 0' }}>✓ OTP Verified Successfully!</h4>
+                                        <p style={{ margin: 0, fontSize: '0.95rem' }}>
+                                            Your parent has approved your outpass request. It has been sent to admin for final approval.
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div style={{ marginBottom: '1rem' }}>
+                                            <label style={{
+                                                display: 'block',
+                                                marginBottom: '0.5rem',
+                                                color: '#495057',
+                                                fontSize: '0.95rem',
+                                                fontWeight: '600'
+                                            }}>
+                                                Enter 6-digit OTP
+                                            </label>
+                                            <input
+                                                type="text"
+                                                maxLength="6"
+                                                value={otpValue}
+                                                onChange={(e) => {
+                                                    const val = e.target.value.replace(/[^0-9]/g, '');
+                                                    setOtpValue(val);
+                                                }}
+                                                placeholder="000000"
+                                                disabled={otpLoading || otpTimer === 0}
+                                                style={{
+                                                    width: '100%',
+                                                    padding: '0.75rem',
+                                                    fontSize: '1.5rem',
+                                                    letterSpacing: '0.5rem',
+                                                    textAlign: 'center',
+                                                    border: otpError ? '2px solid #ef5350' : '1px solid #dee2e6',
+                                                    borderRadius: '6px',
+                                                    fontWeight: 'bold',
+                                                    boxSizing: 'border-box'
+                                                }}
+                                            />
+                                        </div>
+
+                                        {otpAttempts > 0 && (
+                                            <div style={{
+                                                marginBottom: '1rem',
+                                                padding: '0.5rem',
+                                                backgroundColor: '#fff3cd',
+                                                border: '1px solid #ffc107',
+                                                borderRadius: '4px',
+                                                fontSize: '0.85rem',
+                                                color: '#856404'
+                                            }}>
+                                                Attempt {otpAttempts} of 3
+                                            </div>
+                                        )}
+
+                                        <div style={{
+                                            marginBottom: '1rem',
+                                            padding: '0.75rem',
+                                            backgroundColor: '#e3f2fd',
+                                            border: '1px solid #90caf9',
+                                            borderRadius: '6px',
+                                            textAlign: 'center',
+                                            color: '#1976d2',
+                                            fontWeight: '600'
+                                        }}>
+                                            ⏱️ OTP expires in: {formatTime(otpTimer)}
+                                        </div>
+
+                                        <button
+                                            onClick={handleVerifyOTP}
+                                            disabled={otpLoading || otpTimer === 0}
+                                            style={{
+                                                width: '100%',
+                                                padding: '0.75rem 1rem',
+                                                backgroundColor: '#667eea',
+                                                color: 'white',
+                                                border: 'none',
+                                                borderRadius: '6px',
+                                                fontSize: '1rem',
+                                                fontWeight: '600',
+                                                cursor: (otpLoading || otpTimer === 0) ? 'not-allowed' : 'pointer',
+                                                opacity: (otpLoading || otpTimer === 0) ? 0.6 : 1,
+                                                marginBottom: '0.5rem',
+                                                transition: 'all 0.3s ease'
+                                            }}
+                                        >
+                                            {otpLoading ? '🔄 Verifying...' : '✓ Verify OTP'}
+                                        </button>
+
+                                        <button
+                                            onClick={handleResendOTP}
+                                            disabled={otpLoading}
+                                            style={{
+                                                width: '100%',
+                                                padding: '0.75rem 1rem',
+                                                backgroundColor: 'white',
+                                                color: '#667eea',
+                                                border: '2px solid #667eea',
+                                                borderRadius: '6px',
+                                                fontSize: '1rem',
+                                                fontWeight: '600',
+                                                cursor: otpLoading ? 'not-allowed' : 'pointer',
+                                                opacity: otpLoading ? 0.6 : 1,
+                                                transition: 'all 0.3s ease'
+                                            }}
+                                        >
+                                            {otpLoading ? '⏳ Sending OTP...' : '🔄 Send OTP Again'}
+                                        </button>
+                                    </>
+                                )}
+                            </>
+                        ) : (
+                            // OTP NOT SENT YET - Show Send OTP button
+                            <>
+                                <div style={{
+                                    backgroundColor: '#e3f2fd',
+                                    border: '1px solid #90caf9',
+                                    borderRadius: '6px',
+                                    padding: '1rem',
+                                    marginBottom: '1rem',
+                                    color: '#1976d2'
+                                }}>
+                                    <p style={{ margin: 0, fontSize: '0.95rem' }}>
+                                        We will send a 6-digit OTP to your parent's phone ending in <strong>***{pendingPass.parentMobileNumber?.slice(-3)}</strong>
+                                    </p>
+                                    <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.9rem' }}>
+                                        Click the button below to send OTP for verification
+                                    </p>
+                                </div>
+
+                                {otpError && (
+                                    <div style={{
+                                        backgroundColor: '#ffebee',
+                                        border: '1px solid #ef5350',
+                                        borderRadius: '6px',
+                                        padding: '0.75rem',
+                                        marginBottom: '1rem',
+                                        color: '#c62828',
+                                        fontSize: '0.9rem'
+                                    }}>
+                                        ⚠️ {otpError}
+                                    </div>
+                                )}
+
+                                <button
+                                    onClick={handleSendOTP}
+                                    disabled={otpLoading}
+                                    style={{
+                                        width: '100%',
+                                        padding: '0.75rem 1rem',
+                                        backgroundColor: '#667eea',
+                                        color: 'white',
+                                        border: 'none',
+                                        borderRadius: '6px',
+                                        fontSize: '1rem',
+                                        fontWeight: '600',
+                                        cursor: otpLoading ? 'not-allowed' : 'pointer',
+                                        opacity: otpLoading ? 0.7 : 1,
+                                        transition: 'all 0.3s ease'
+                                    }}
+                                >
+                                    {otpLoading ? '⏳ Sending OTP...' : '� Send OTP to Parent'}
+                                </button>
+                            </>
+                        )}
+                    </div>
+                </div>
         );
     }
 
@@ -904,13 +1381,33 @@ function Outpass() {
             if (payload.outTime instanceof Date) payload.outTime = payload.outTime.toISOString();
             if (payload.inTime instanceof Date) payload.inTime = payload.inTime.toISOString();
 
-            await axios.post(`${import.meta.env.VITE_SERVER_URL}/student-api/apply-outpass`, payload);
-            reset();
+            // Get token from localStorage
+            const token = localStorage.getItem('token');
+            if (!token) {
+                toast.error('Authentication required. Please log in again.');
+                return;
+            }
+
+            // Call new OTP-based apply endpoint with auth header
+            const response = await axios.post(`${import.meta.env.VITE_SERVER_URL}/outpass-api/apply`, payload, {
+                headers: {
+                    Authorization: `Bearer ${token}`
+                }
+            });
+            
+            // No need to store this anymore, just redirect to view
+            toast.success('Outpass request created! Check your pending pass for parent verification.');
             setOffensiveWarning(null);
-            window.location.reload();
+            
+            // Refresh to show the pending pass view
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
         } catch (error) {
             console.error('Error:', error);
             toast.error(error.response?.data?.message || 'Failed to submit outpass request');
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -1028,9 +1525,6 @@ function Outpass() {
                         }}
                     />
                     {errors.reason && <span className="error-message">{errors.reason.message}</span>}
-                    <small style={{ display: 'block', marginTop: '0.5rem', color: '#6c757d' }}>
-                        Please provide a clear and appropriate reason. Offensive language, emojis, or gibberish will be rejected.
-                    </small>
                 </div>
 
                 <div className="form-group">

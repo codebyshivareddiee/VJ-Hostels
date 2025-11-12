@@ -13,6 +13,16 @@ const Outpasses = () => {
     // Filter states
     const [filterType, setFilterType] = useState(''); // '' | 'home pass' | 'late pass'
     const [filterBatch, setFilterBatch] = useState(''); // year
+    const [filterApprovalStatus, setFilterApprovalStatus] = useState('pending_admin_approval'); // 'pending_admin_approval' | 'pending_parent_approval'
+    
+    // Confirmation modal states
+    const [showConfirmModal, setShowConfirmModal] = useState(false);
+    const [confirmData, setConfirmData] = useState({
+        outpassId: null,
+        outpassName: '',
+        action: null, // 'approved' or 'rejected'
+        rejectionReason: '' // Admin rejection reason
+    });
     
     const { token } = useAdmin();
 
@@ -57,6 +67,39 @@ const Outpasses = () => {
         }
     };
 
+    const openConfirmModal = (outpassId, outpassName, action) => {
+        setConfirmData({
+            outpassId,
+            outpassName,
+            action,
+            rejectionReason: ''
+        });
+        setShowConfirmModal(true);
+    };
+
+    const handleConfirmAction = async () => {
+        try {
+            const payload = { 
+                status: confirmData.action,
+                rejectionReason: confirmData.rejectionReason || undefined
+            };
+            
+            await axios.put(`${import.meta.env.VITE_SERVER_URL}/admin-api/update-outpass-status/${confirmData.outpassId}`,
+                payload,
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    }
+                }
+            );
+            setShowConfirmModal(false);
+            fetchOutpasses();
+        } catch (err) {
+            setError(`Failed to ${confirmData.action} outpass`);
+            console.error(err);
+        }
+    };
+
     // Apply all filters
     const filteredOutpasses = outpasses.filter(outpass => {
         // If showing history, only show approved/returned/out statuses
@@ -65,8 +108,13 @@ const Outpasses = () => {
                 return false;
             }
         } else {
-            // In normal view, only show pending requests
-            if (outpass.status !== 'pending') {
+            // In normal view (not history), only show pending statuses
+            if (!['pending_admin_approval', 'pending_parent_approval'].includes(outpass.status)) {
+                return false;
+            }
+            
+            // Also filter by specific approval status if selected
+            if (filterApprovalStatus && outpass.status !== filterApprovalStatus) {
                 return false;
             }
         }
@@ -91,6 +139,7 @@ const Outpasses = () => {
         setFilterType('');
         setFilterBatch('');
         setSearchTerm('');
+        setFilterApprovalStatus('pending_admin_approval');
     };
 
     return (
@@ -126,8 +175,21 @@ const Outpasses = () => {
                             </button>
                         </div>
                         <div className="row g-3">
+                            {/* Approval Status Filter Dropdown */}
+                            <div className="col-md-4">
+                                <label className="form-label">Approval Status</label>
+                                <select 
+                                    className="form-select"
+                                    value={filterApprovalStatus}
+                                    onChange={(e) => setFilterApprovalStatus(e.target.value)}
+                                >
+                                    <option value="">All</option>
+                                    <option value="pending_admin_approval">Waiting Admin Approval</option>
+                                    <option value="pending_parent_approval">Waiting Parent Approval</option>
+                                </select>
+                            </div>
                             {/* Type Filter */}
-                            <div className="col-md-6">
+                            <div className="col-md-4">
                                 <label className="form-label">Type</label>
                                 <select 
                                     className="form-select"
@@ -141,7 +203,7 @@ const Outpasses = () => {
                             </div>
 
                             {/* Batch/Year Filter */}
-                            <div className="col-md-6">
+                            <div className="col-md-4">
                                 <label className="form-label">Batch</label>
                                 <select 
                                     className="form-select"
@@ -157,10 +219,11 @@ const Outpasses = () => {
                         </div>
                         
                         {/* Active filters indicator */}
-                        {(filterType || filterBatch) && (
+                        {(filterType || filterBatch || filterApprovalStatus !== 'pending_admin_approval') && (
                             <div className="mt-2">
                                 <small className="text-muted">
                                     Active filters: 
+                                    {filterApprovalStatus === 'pending_parent_approval' && <span className="badge bg-info ms-1">Parent Approval Pending</span>}
                                     {filterType && <span className="badge bg-info ms-1">{filterType}</span>}
                                     {filterBatch && <span className="badge bg-info ms-1">Batch: {filterBatch}</span>}
                                 </small>
@@ -212,7 +275,7 @@ const Outpasses = () => {
                                             <th>In Time</th>
                                             <th>Reason</th>
                                             <th>Contact</th>
-                                            <th>Status</th>
+                                            <th>Parent Approval</th>
                                             {!showHistory && <th>Actions</th>}
                                         </tr>
                                     </thead>
@@ -234,30 +297,34 @@ const Outpasses = () => {
                                                     <div>Parent: {outpass.parentMobileNumber}</div>
                                                 </td>
                                                 <td>
-                                                    <span className={`badge ${
-                                                        outpass.status === 'approved' ? 'bg-success' :
-                                                        outpass.status === 'rejected' ? 'bg-danger' :
-                                                        outpass.status === 'out' ? 'bg-info' :
-                                                        outpass.status === 'returned' ? 'bg-secondary' :
-                                                        outpass.status === 'pending' ? 'bg-warning' :
-                                                        'bg-dark'
-                                                    }`}>
-                                                        {outpass.status}
-                                                    </span>
+                                                    {outpass.parentApproval?.status === 'approved' ? (
+                                                        <span className="badge" title="Parent Approved">
+                                                            ✅
+                                                        </span>
+                                                    ) : outpass.parentApproval?.status === 'rejected' ? (
+                                                        <span className="badge" title="Parent Rejected">
+                                                            ❌
+                                                        </span>
+                                                    ) : (
+                                                        <span className="badge text-dark" title="Pending Parent Approval">
+                                                            -
+                                                        </span>
+                                                    )}
                                                 </td>
                                                 {!showHistory && (
                                                     <td>
-                                                        {outpass.status === 'pending' ? (
+                                                        {(outpass.status === 'pending' || outpass.status === 'pending_admin_approval' || outpass.status === 'pending_parent_approval') ? (
                                                             <div className="d-flex gap-2">
                                                                 <button
                                                                     className="btn btn-sm btn-success"
-                                                                    onClick={() => handleUpdateStatus(outpass._id, 'approved')}
+                                                                    onClick={() => openConfirmModal(outpass._id, outpass.name, 'approved')}
+                                                                    title='Approve outpass'
                                                                 >
                                                                     Approve
                                                                 </button>
                                                                 <button
                                                                     className="btn btn-sm btn-danger"
-                                                                    onClick={() => handleUpdateStatus(outpass._id, 'rejected')}
+                                                                    onClick={() => openConfirmModal(outpass._id, outpass.name, 'rejected')}
                                                                 >
                                                                     Reject
                                                                 </button>
@@ -276,6 +343,66 @@ const Outpasses = () => {
                     )}
                 </div>
             </div>
+
+            {/* Confirmation Modal */}
+            {showConfirmModal && (
+                <div className="modal d-block" style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }} tabIndex="-1">
+                    <div className="modal-dialog modal-dialog-centered">
+                        <div className="modal-content">
+                            <div className="modal-header" style={{
+                                backgroundColor: confirmData.action === 'approved' ? '#28a745' : '#dc3545',
+                                color: 'white'
+                            }}>
+                                <h5 className="modal-title">
+                                    {confirmData.action === 'approved' ? '✓ Approve Outpass' : '✗ Reject Outpass'}
+                                </h5>
+                                <button
+                                    type="button"
+                                    className="btn-close btn-close-white"
+                                    onClick={() => setShowConfirmModal(false)}
+                                ></button>
+                            </div>
+                            <div className="modal-body">
+                                <p className="mb-3">
+                                    Are you sure you want to <strong>{confirmData.action}</strong> the outpass for <strong>{confirmData.outpassName}</strong>?
+                                </p>
+                                
+                                {confirmData.action === 'rejected' && (
+                                    <div className="mb-3">
+                                        <label className="form-label">Rejection Reason (Optional)</label>
+                                        <textarea
+                                            className="form-control"
+                                            rows="3"
+                                            placeholder="Enter rejection reason..."
+                                            value={confirmData.rejectionReason}
+                                            onChange={(e) => setConfirmData({
+                                                ...confirmData,
+                                                rejectionReason: e.target.value
+                                            })}
+                                        ></textarea>
+                                    </div>
+                                )}
+                            </div>
+                            <div className="modal-footer">
+                                <button
+                                    type="button"
+                                    className="btn btn-secondary"
+                                    onClick={() => setShowConfirmModal(false)}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    className={`btn ${confirmData.action === 'approved' ? 'btn-success' : 'btn-danger'}`}
+                                    onClick={handleConfirmAction}
+                                >
+                                    {confirmData.action === 'approved' ? 'Approve' : 'Reject'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

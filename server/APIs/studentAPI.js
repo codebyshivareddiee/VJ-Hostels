@@ -379,7 +379,7 @@ studentApp.post('/apply-outpass', expressAsyncHandler(async (req, res) => {
 studentApp.get('/all-outpasses/:rollNumber', expressAsyncHandler(async (req, res) => {
     try {
         const { rollNumber } = req.params;
-        const studentOutpasses = await Outpass.find({ rollNumber });
+        const studentOutpasses = await Outpass.find({ rollNumber }).sort({ createdAt: -1 });
         if (!studentOutpasses.length) {
             return res.status(404).json({ message: 'No outpass requests found for this student' });
         }

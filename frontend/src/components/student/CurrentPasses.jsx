@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { QRCodeSVG } from 'qrcode.react';
-import { Download, Clock, Calendar, Phone, User, FileText, MapPin } from 'lucide-react';
+import { Download, Clock, Calendar, Phone, User, FileText, MapPin, Loader2 } from 'lucide-react';
 import useCurrentUser from '../../hooks/student/useCurrentUser';
 import { generateOutpassPDF } from '../../utils/outpassPDF';
 import ErrorBoundary from './ErrorBoundary';
@@ -13,6 +13,24 @@ const CurrentPasses = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+    const [qrRevealState, setQrRevealState] = useState({}); // Track revealed QRs: { passId: true/false }
+    const [qrTimers, setQrTimers] = useState({}); // Track timer countdown: { passId: secondsRemaining }
+
+    // Inject spinner animation styles
+    useEffect(() => {
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes spin {
+                from { transform: rotate(0deg); }
+                to { transform: rotate(360deg); }
+            }
+            .spin-animation {
+                animation: spin 1s linear infinite;
+            }
+        `;
+        document.head.appendChild(style);
+        return () => document.head.removeChild(style);
+    }, []);
 
     useEffect(() => {
         const handleResize = () => {
@@ -106,11 +124,6 @@ const CurrentPasses = () => {
         const scheduledOutTime = new Date(pass.outTime);
         const scheduledInTime = new Date(pass.inTime);
         
-        // For 'approved' status: expired if past scheduled out time
-        if (pass.status === 'approved' && now > scheduledOutTime) {
-            return true;
-        }
-        
         // For 'out' status: expired if past scheduled in time and not already marked as late
         if (pass.status === 'out' && now > scheduledInTime && !pass.isLate) {
             return true;
@@ -118,6 +131,72 @@ const CurrentPasses = () => {
         
         return false;
     };
+
+    // Handle QR reveal on click
+    const handleQRReveal = (passId) => {
+        setQrRevealState(prev => ({
+            ...prev,
+            [passId]: true
+        }));
+        // Start 10-second timer
+        setQrTimers(prev => ({
+            ...prev,
+            [passId]: 10
+        }));
+    };
+
+    // Timer effect - countdown and hide QR after 10 seconds
+    useEffect(() => {
+        const timers = {};
+
+        Object.entries(qrTimers).forEach(([passId, seconds]) => {
+            if (seconds > 0) {
+                timers[passId] = setTimeout(() => {
+                    setQrTimers(prev => ({
+                        ...prev,
+                        [passId]: seconds - 1
+                    }));
+                }, 1000);
+            } else if (seconds === 0 && qrRevealState[passId]) {
+                // Hide QR after countdown reaches 0
+                setQrRevealState(prev => ({
+                    ...prev,
+                    [passId]: false
+                }));
+                setQrTimers(prev => {
+                    const newTimers = { ...prev };
+                    delete newTimers[passId];
+                    return newTimers;
+                });
+
+                // Fetch updated pass data from DB when timer reaches 0
+                const refreshPassData = async () => {
+                    try {
+                        if (user?.rollNumber) {
+                            const response = await axios.get(
+                                `${import.meta.env.VITE_SERVER_URL}/student-api/all-outpasses/${user.rollNumber}`
+                            );
+                            
+                            const activePasses = response.data.studentOutpasses?.filter(
+                                pass => pass.status === 'approved' || pass.status === 'late' || pass.status === 'out'
+                            ) || [];
+                            
+                            setCurrentPasses(activePasses);
+                            console.log('Pass data refreshed from DB after timer reached 0');
+                        }
+                    } catch (error) {
+                        console.error('Error refreshing pass data:', error);
+                    }
+                };
+
+                refreshPassData();
+            }
+        });
+
+        return () => {
+            Object.values(timers).forEach(timer => clearTimeout(timer));
+        };
+    }, [qrTimers, qrRevealState, user]);
 
     if (loading) {
         return (
@@ -185,16 +264,59 @@ const CurrentPasses = () => {
                                 {/* QR Code Section - Centered */}
                                 <div style={mobileStyles.qrSection}>
                                     {pass.qrCodeData && (
-                                        <div style={mobileStyles.qrWrapper}>
-                                            <div style={mobileStyles.qrContainer}>
-                                                <QRCodeSVG 
-                                                    value={pass.qrCodeData} 
-                                                    size={180}
-                                                    level="H"
-                                                    includeMargin={true}
-                                                />
+                                        <div 
+                                            style={{
+                                                ...mobileStyles.qrWrapper,
+                                                cursor: !qrRevealState[pass._id] ? 'pointer' : 'default'
+                                            }}
+                                            onClick={() => !qrRevealState[pass._id] && handleQRReveal(pass._id)}
+                                        >
+                                            {/* Interactive QR Container */}
+                                            <div style={{
+                                                ...mobileStyles.qrInteractiveContainer,
+                                                position: 'relative'
+                                            }}>
+                                                <div style={{
+                                                    ...mobileStyles.qrContainer,
+                                                    opacity: qrRevealState[pass._id] ? 1 : 0.3,
+                                                    transition: 'opacity 0.3s ease'
+                                                }}>
+                                                    <QRCodeSVG 
+                                                        value={pass.qrCodeData} 
+                                                        size={180}
+                                                        level="H"
+                                                        includeMargin={true}
+                                                    />
+                                                </div>
+
+                                                {/* Overlay with Text */}
+                                                {!qrRevealState[pass._id] && (
+                                                    <div style={mobileStyles.qrOverlay}>
+                                                        <div style={mobileStyles.qrOverlayContent}>
+                                                            <Clock size={28} color="#fff" />
+                                                            <p style={mobileStyles.qrOverlayText}>
+                                                                {pass.status === 'approved' 
+                                                                    ? '👉 Click to go out'
+                                                                    : '👉 Click to return'
+                                                                }
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* Timer Display */}
+                                                {qrRevealState[pass._id] && qrTimers[pass._id] !== undefined && (
+                                                    <div style={mobileStyles.timerContainer}>
+                                                        <Loader2 size={18} className="spin-animation" style={{ color: '#667eea' }} />
+                                                        <span style={mobileStyles.timerText}>{qrTimers[pass._id]}s</span>
+                                                    </div>
+                                                )}
                                             </div>
-                                            <p style={mobileStyles.qrInstruction}>Scan at Gate</p>
+                                            <p style={mobileStyles.qrInstruction}>
+                                                {qrRevealState[pass._id] 
+                                                    ? `Hiding in ${qrTimers[pass._id]}s...`
+                                                    : 'Click QR to reveal'}
+                                            </p>
                                         </div>
                                     )}
                                 </div>
@@ -458,16 +580,58 @@ const CurrentPasses = () => {
                                                     <span>QR EXPIRED</span>
                                                 </div>
                                             )}
-                                            <div style={styles.qrContainer}>
-                                                <QRCodeSVG 
-                                                    value={pass.qrCodeData} 
-                                                    size={200}
-                                                    level="H"
-                                                    includeMargin={true}
-                                                />
+                                            
+                                            {/* Interactive QR Container */}
+                                            <div 
+                                                style={{
+                                                    ...styles.qrInteractiveContainer,
+                                                    position: 'relative',
+                                                    cursor: !qrRevealState[pass._id] ? 'pointer' : 'default'
+                                                }}
+                                                onClick={() => !qrRevealState[pass._id] && handleQRReveal(pass._id)}
+                                            >
+                                                {/* QR Code */}
+                                                <div style={{
+                                                    ...styles.qrContainer,
+                                                    opacity: qrRevealState[pass._id] ? 1 : 0.3,
+                                                    transition: 'opacity 0.3s ease'
+                                                }}>
+                                                    <QRCodeSVG 
+                                                        value={pass.qrCodeData} 
+                                                        size={200}
+                                                        level="H"
+                                                        includeMargin={true}
+                                                    />
+                                                </div>
+
+                                                {/* Overlay with Blur + Text */}
+                                                {!qrRevealState[pass._id] && (
+                                                    <div style={styles.qrOverlay}>
+                                                        <div style={styles.qrOverlayContent}>
+                                                            <Clock size={32} color="#fff" />
+                                                            <p style={styles.qrOverlayText}>
+                                                                {pass.status === 'approved' 
+                                                                    ? '👉 Click to go out the gate'
+                                                                    : '👉 Click to get into the hostel'
+                                                                }
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* Timer Display */}
+                                                {qrRevealState[pass._id] && qrTimers[pass._id] !== undefined && (
+                                                    <div style={styles.timerContainer}>
+                                                        <Loader2 size={20} className="spin-animation" style={{ color: '#667eea' }} />
+                                                        <span style={styles.timerText}>{qrTimers[pass._id]}s</span>
+                                                    </div>
+                                                )}
                                             </div>
+                                            
                                             <p style={styles.qrText}>
-                                                {pass.isLate ? 'Late Entry Pass - Show at gate' : 'Show this QR code at the gate'}
+                                                {qrRevealState[pass._id] 
+                                                    ? `Hiding in ${qrTimers[pass._id]}s...`
+                                                    : (pass.isLate ? 'Late Entry Pass - Click to reveal' : 'Click QR to reveal')}
                                             </p>
                                         </div>
                                     )}
@@ -616,11 +780,63 @@ const styles = {
         alignItems: 'center',
         gap: '1rem',
     },
+    qrInteractiveContainer: {
+        position: 'relative',
+        width: 'fit-content',
+        marginTop: '2rem',
+    },
     qrContainer: {
-        padding: '1rem',
+        padding: '2rem',
         backgroundColor: '#fff',
         borderRadius: '12px',
         boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+    },
+    qrOverlay: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backdropFilter: 'blur(8px)',
+        backgroundColor: 'rgba(0, 0, 0, 0.4)',
+        borderRadius: '12px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        cursor: 'pointer',
+        transition: 'all 0.3s ease',
+    },
+    qrOverlayContent: {
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: '12px',
+        color: '#fff',
+    },
+    qrOverlayText: {
+        margin: 0,
+        fontSize: '0.95rem',
+        fontWeight: '600',
+        textAlign: 'center',
+        color: '#fff',
+    },
+    timerContainer: {
+        position: 'absolute',
+        top: '-15px',
+        right: '-15px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '6px',
+        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+        padding: '8px 14px',
+        borderRadius: '20px',
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)',
+        fontWeight: '600',
+    },
+    timerText: {
+        fontSize: '0.85rem',
+        color: '#667eea',
+        fontWeight: 'bold',
     },
     qrText: {
         margin: 0,
@@ -782,12 +998,63 @@ const mobileStyles = {
         alignItems: 'center',
         gap: '1rem',
     },
+    qrInteractiveContainer: {
+        position: 'relative',
+        width: 'fit-content',
+    },
     qrContainer: {
-        padding: '1rem',
+        padding: '1.5rem',
         backgroundColor: '#fff',
         borderRadius: '12px',
         border: '2px solid #e2e8f0',
         boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
+    },
+    qrOverlay: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backdropFilter: 'blur(6px)',
+        backgroundColor: 'rgba(0, 0, 0, 0.35)',
+        borderRadius: '12px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        cursor: 'pointer',
+        transition: 'all 0.3s ease',
+    },
+    qrOverlayContent: {
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: '10px',
+        color: '#fff',
+    },
+    qrOverlayText: {
+        margin: 0,
+        fontSize: '0.9rem',
+        fontWeight: '600',
+        textAlign: 'center',
+        color: '#fff',
+    },
+    timerContainer: {
+        position: 'absolute',
+        top: '-12px',
+        right: '-12px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '6px',
+        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+        padding: '6px 10px',
+        borderRadius: '20px',
+        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+        fontWeight: '600',
+    },
+    timerText: {
+        fontSize: '0.8rem',
+        color: '#667eea',
+        fontWeight: 'bold',
     },
     qrInstruction: {
         margin: 0,

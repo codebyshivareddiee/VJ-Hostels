@@ -110,7 +110,6 @@ const SecurityLayout = () => {
         {!isMobile && (
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
             <NavItem icon={<Scan size={18} />} label="QR Scanner" to="/security/scanner" isActive={isActive('/scanner')} onClick={closeSidebar} />
-            <NavItem icon={<CreditCard size={18} />} label="ID Check-in" to="/security/scanner" isActive={isActive('/scanner')} onClick={closeSidebar} />
             <NavItem icon={<FileCheck size={18} />} label="Passes" to="/security/passes" isActive={isActive('/passes')} onClick={closeSidebar} />
             <NavItem icon={<Users size={18} />} label="Visitors" to="/security/visitors" isActive={isActive('/visitors')} onClick={closeSidebar} />
             <NavItem icon={<ClipboardCheck size={18} />} label="Attendance" to="/security/attendance" isActive={isActive('/attendance')} onClick={closeSidebar} />
