@@ -1,11 +1,13 @@
 const express = require('express');
 const attendanceRouter = express.Router();
-const AttendanceRecord = require('../models/AttendanceModel');
+const { AttendanceRecord } = require('../models/AttendanceModel');
+const MonthlyAttendance = require('../models/MonthlyAttendanceModel');
 const Student = require('../models/StudentModel');
 const Room = require('../models/Room');
 const Outpass = require('../models/OutpassModel');
 const expressAsyncHandler = require('express-async-handler');
 const jwt = require('jsonwebtoken');
+const mongoose = require('mongoose');
 require('dotenv').config();
 
 // Helper: determine operational attendance date and whether marking is allowed now
@@ -14,29 +16,103 @@ function getOperationalAttendanceDate(now = new Date()) {
   const today = new Date(current);
   today.setHours(0, 0, 0, 0);
 
-  const startWindow = new Date(today); // 9:00 PM today
-  startWindow.setHours(21, 0, 0, 0);
-
-  const endWindow = new Date(today); // 4:00 AM next day
-  endWindow.setDate(endWindow.getDate() + 1);
-  endWindow.setHours(4, 0, 0, 0);
-
   let allowed = false;
-  let attendanceDate = new Date(today); // default to today
+  let attendanceDate = new Date(today);
+  let startWindow, endWindow;
 
-  if (current >= startWindow && current < endWindow) {
-    // In marking window that spans midnight
+  // Check if we're between midnight and 4 AM
+  if (current.getHours() >= 0 && current.getHours() < 4) {
+    // We're in the early morning hours (12 AM - 4 AM)
+    // This is the END of yesterday's attendance window
+    // Attendance should be marked for YESTERDAY
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    attendanceDate = yesterday;
+    
+    // Window started yesterday at 9 PM
+    startWindow = new Date(yesterday);
+    startWindow.setHours(21, 0, 0, 0);
+    
+    // Window ends today at 4 AM
+    endWindow = new Date(today);
+    endWindow.setHours(4, 0, 0, 0);
+    
     allowed = true;
-    // Between midnight and 4 AM -> attendance belongs to previous calendar day
-    if (current.getHours() < 4) {
-      const yesterday = new Date(today);
-      yesterday.setDate(yesterday.getDate() - 1);
-      attendanceDate = yesterday;
-    }
+  } 
+  // Check if we're between 9 PM and midnight
+  else if (current.getHours() >= 21) {
+    // We're in the evening (9 PM - 11:59 PM)
+    // This is the START of today's attendance window
+    // Attendance should be marked for TODAY
+    attendanceDate = new Date(today);
+    
+    // Window starts today at 9 PM
+    startWindow = new Date(today);
+    startWindow.setHours(21, 0, 0, 0);
+    
+    // Window ends tomorrow at 4 AM
+    endWindow = new Date(today);
+    endWindow.setDate(endWindow.getDate() + 1);
+    endWindow.setHours(4, 0, 0, 0);
+    
+    allowed = true;
+  }
+  // Outside attendance window
+  else {
+    // Between 4 AM and 9 PM - not allowed
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    startWindow = new Date(yesterday);
+    startWindow.setHours(21, 0, 0, 0);
+    
+    endWindow = new Date(today);
+    endWindow.setHours(4, 0, 0, 0);
+    
+    allowed = false;
+    attendanceDate = new Date(today);
   }
 
   attendanceDate.setHours(0, 0, 0, 0);
   return { attendanceDate, allowed, startWindow, endWindow };
+}
+
+// Helper: Update MonthlyAttendance when attendance is marked
+async function updateMonthlyAttendance(studentId, attendanceDate, status) {
+  try {
+    const year = attendanceDate.getFullYear();
+    const month = attendanceDate.getMonth() + 1;
+    const day = attendanceDate.getDate();
+    
+    // Convert studentId to ObjectId if it's a string
+    let studentObjectId = studentId;
+    if (typeof studentId === 'string' && mongoose.Types.ObjectId.isValid(studentId)) {
+      studentObjectId = new mongoose.Types.ObjectId(studentId);
+    }
+    
+    // Map status to attendance character
+    let attendanceChar = 'A'; // Default to absent
+    if (status === 'present') {
+      attendanceChar = 'P';
+    } else if (status.includes('home_pass') || status.includes('late_pass')) {
+      attendanceChar = 'H';
+    }
+
+    console.log(`[Monthly Attendance] Updating: studentId=${studentObjectId}, year=${year}, month=${month}, day=${day}, status=${status}, char=${attendanceChar}`);
+
+    // Ensure monthly record exists (uses static method from model)
+    let monthlyRecord = await MonthlyAttendance.ensureExists(studentObjectId, year, month);
+    
+    // Use Map.set() to update the attendance for this day
+    // The pre-save hook will automatically recalculate the summary
+    monthlyRecord.attendance.set(day.toString(), attendanceChar);
+    
+    await monthlyRecord.save();
+    console.log(`[Monthly Attendance] ✓ Saved. Summary: present=${monthlyRecord.summary.present}, absent=${monthlyRecord.summary.absent}, home_pass=${monthlyRecord.summary.home_pass}`);
+  } catch (error) {
+    console.error('[Monthly Attendance] ✗ Error:', error);
+    // Don't throw - allow attendance marking to succeed even if monthly update fails
+  }
 }
 
 // Middleware to verify security role
@@ -300,6 +376,9 @@ attendanceRouter.post('/mark-room', expressAsyncHandler(async (req, res) => {
           }
         );
 
+        // Update monthly attendance record for the student
+        await updateMonthlyAttendance(studentId, attendanceDate, status);
+
         results.push(attendanceRecord);
       } catch (error) {
         errors.push({
@@ -393,6 +472,9 @@ attendanceRouter.post('/mark-floor', expressAsyncHandler(async (req, res) => {
               setDefaultsOnInsert: true
             }
           );
+
+          // Update monthly attendance record for the student
+          await updateMonthlyAttendance(studentId, attendanceDate, status);
 
           results.push(attendanceRecord);
           totalSuccess++;

@@ -10,7 +10,8 @@
     "seed": "node seedData/seedOTPData.js",
     "import:mockusers": "node seedData/importData.js",
     "allocate:rooms": "node scripts/allocateRooms.js",
-    "seed:food-menu": "node scripts/seedFoodMenuData.js"
+    "seed:food-menu": "node scripts/seedFoodMenuData.js",
+    "create:monthly-attendance": "node scripts/createMonthlyAttendanceForAllStudents.js"
   },
   "author": "",
   "license": "ISC",

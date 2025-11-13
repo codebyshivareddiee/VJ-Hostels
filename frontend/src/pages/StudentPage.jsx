@@ -11,6 +11,7 @@ import OutpassPage from '../components/student/OutpassPage';
 import Outpass from '../components/student/Outpass';
 import OutpassList from '../components/student/OutpassList';
 import StudentProfile from '../components/student/StudentProfile';
+import AttendanceStats from '../components/student/AttendanceStats';
 import Food from '../components/student/Food';
 import VisitorManagement from '../components/student/VisitorManagement';
 
@@ -30,6 +31,7 @@ function StudentPage() {
         <Route path="outpass/apply-outpass" element={<Outpass />} />
         <Route path="outpass/outpass-history" element={<OutpassList />} />
         <Route path="profile" element={<StudentProfile />} />
+        <Route path="attendance" element={<AttendanceStats />} />
         <Route path="food" element={<Food />} />
         <Route path="visitors" element={<VisitorManagement />} />
       </Route>

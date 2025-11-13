@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import useCurrentUser from '../../hooks/student/useCurrentUser';
 import { toast } from 'react-hot-toast';
+import AttendanceStats from './AttendanceStats';
 
 function StudentProfile() {
   const { user, loading, updateUser } = useCurrentUser();
@@ -195,7 +196,7 @@ function StudentProfile() {
     <div style={styles.container}>
       <h2 style={styles.header}>Student Profile</h2>
 
-      {/* Profile Photo */}
+      {/* Profile Photo (always visible) */}
       <div style={styles.photoContainer}>
         {previewUrl ? (
           <img src={previewUrl} alt="Profile Preview" style={styles.image} />
@@ -211,10 +212,16 @@ function StudentProfile() {
       {/* Tab Navigation */}
       <div style={styles.tabContainer}>
         <button
-          style={activeTab === 'details' ? {...styles.tabButton, ...styles.activeTab} : styles.tabButton}
+          style={activeTab === 'details' ? { ...styles.tabButton, ...styles.activeTab } : styles.tabButton}
           onClick={() => setActiveTab('details')}
         >
           Student Details
+        </button>
+        <button
+          style={activeTab === 'attendance' ? { ...styles.tabButton, ...styles.activeTab } : styles.tabButton}
+          onClick={() => setActiveTab('attendance')}
+        >
+          Attendance
         </button>
       </div>
 
@@ -229,6 +236,13 @@ function StudentProfile() {
           <p><strong>Phone Number:</strong> {user?.phoneNumber || 'N/A'}</p>
           <p><strong>Parent's Mobile Number:</strong> {user?.parentMobileNumber || 'N/A'}</p>
           <p><strong>Room:</strong> {user?.room || 'N/A'}</p>
+        </div>
+      )}
+
+      {/* Attendance Tab */}
+      {activeTab === 'attendance' && (
+        <div style={{ marginTop: '1rem' }}>
+          <AttendanceStats />
         </div>
       )}
 
@@ -268,7 +282,7 @@ function StudentProfile() {
 
 const styles = {
   container: {
-    maxWidth: '600px',
+    maxWidth: '1100px',
     margin: '2rem auto',
     padding: '2rem',
     boxShadow: '0 4px 8px rgba(0,0,0,0.1)',

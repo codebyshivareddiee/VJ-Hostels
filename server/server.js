@@ -23,6 +23,7 @@ const foodApp = require('./APIs/foodAPI');
 const adminVisitorApp = require('./APIs/adminVisitorAPI');
 const outpassApp = require('./APIs/outpassAPI');
 const otpRoutes = require('./routes/otpRoutes');
+const monthlyAttendanceRoutes = require('./routes/monthlyAttendanceRoutes');
 // const complaintApp = require('./APIs/complaintAPI');
 
 // Import SEO configuration
@@ -81,6 +82,10 @@ app.use('/food-api', foodApp);
 app.use('/api/admin/visitors', adminVisitorApp);
 app.use('/outpass-api', outpassApp);
 app.use('/api/otp', otpRoutes);
+
+// Monthly Attendance API
+app.use('/api/monthly-attendance', monthlyAttendanceRoutes);
+
 app.use('/security-api', securityRoutes);
 app.use('/attendance-api', attendanceRoutes);
 // app.use('/complaint-api',complaintApp);

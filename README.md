@@ -37,6 +37,7 @@ The Hostel Management System consists of three main components:
 - **Food Management**:
   - Visualize student feedback
   - Manage food menu
+- **Attendance Management**: Real-time attendance marking and statistics
 
 ### Student Portal Features
 
@@ -56,6 +57,12 @@ The Hostel Management System consists of three main components:
 - **Food Services**:
   - View food menu
   - Submit food reviews
+- **Attendance Calendar**: View monthly attendance with color-coded status
+
+### Security Portal Features
+
+- **Authentication**: Secure security guard login
+- **Attendance Marking**: Room-wise and floor-wise attendance with time-window restrictions
 
 ## Room Allocation System
 
@@ -81,6 +88,10 @@ The hostel has 12 floors with specific allocation rules:
   - Rooms ending with 37: 3-sharing
   - Rooms ending with 38: 3-sharing
   - Rooms ending with 39: 2-sharing
+
+## Attendance System
+
+The system includes an optimized monthly attendance tracking module with real-time marking capabilities for security guards and interactive calendar views for students. Features include time-window based marking (9 PM - 4 AM), automatic monthly record creation, and pre-computed statistics for instant reporting.
 
 ## Technology Stack
 

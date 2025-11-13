@@ -1,6 +1,6 @@
 const express = require('express');
 const expressAsyncHandler = require('express-async-handler');
-const AttendanceRecord = require('../models/AttendanceModel');
+const { AttendanceRecord } = require('../models/AttendanceModel');
 const Room = require('../models/Room');
 const Student = require('../models/StudentModel');
 const Outpass = require('../models/OutpassModel');

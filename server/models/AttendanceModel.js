@@ -55,4 +55,18 @@ attendanceRecordSchema.index({ date: 1, roomNumber: 1 });
 
 const AttendanceRecord = mongoose.model('AttendanceRecord', attendanceRecordSchema);
 
-module.exports = AttendanceRecord;
+const attendanceMonthlySchema = new mongoose.Schema({
+  student_id: { type: String, required: true },
+  year: { type: Number, required: true },
+  month: { type: Number, required: true },
+  attendance: { type: Map, of: String },
+  summary: {
+    present: { type: Number, default: 0 },
+    absent: { type: Number, default: 0 },
+    home_pass: { type: Number, default: 0 }
+  }
+});
+
+const AttendanceMonthly = mongoose.model('AttendanceMonthly', attendanceMonthlySchema);
+
+module.exports = { AttendanceRecord, AttendanceMonthly };

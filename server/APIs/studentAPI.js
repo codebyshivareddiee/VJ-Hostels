@@ -8,7 +8,10 @@ const Outpass = require('../models/OutpassModel');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const Student = require('../models/StudentModel');
+const mongoose = require('mongoose');
 const { uploadProfilePhoto, uploadComplaintImage, uploadCommunityPostImage } = require('../middleware/uploadMiddleware');
+const { AttendanceRecord } = require('../models/AttendanceModel');
+const MonthlyAttendance = require('../models/MonthlyAttendanceModel');
 const { verifyStudent } = require('../middleware/verifyToken');
 const { checkOffensiveContent } = require('../utils/offensiveContentChecker');
 require('dotenv').config();
@@ -59,6 +62,208 @@ studentApp.post('/login', expressAsyncHandler(async (req, res) => {
             }
         });
     } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+}));
+
+// Attendance stats for the logged-in student using MonthlyAttendance model
+// GET /student-api/attendance/stats?from=YYYY-MM-DD&to=YYYY-MM-DD
+studentApp.get('/attendance/stats', verifyStudent, expressAsyncHandler(async (req, res) => {
+    try {
+        const { from, to } = req.query;
+        
+        // Use current date in IST timezone properly
+        const now = new Date();
+        const end = to ? new Date(to + 'T23:59:59') : new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const start = from ? new Date(from + 'T00:00:00') : new Date(end.getFullYear(), end.getMonth(), end.getDate() - 29);
+
+        console.log(`[Attendance Stats API] Query params - from: ${from}, to: ${to}`);
+        console.log(`[Attendance Stats API] Now: ${now.toISOString()}`);
+        console.log(`[Attendance Stats API] Start date: ${start.toISOString()} (${start.toDateString()})`);
+        console.log(`[Attendance Stats API] End date: ${end.toISOString()} (${end.toDateString()})`);
+        console.log(`[Attendance Stats API] Start month: ${start.getMonth() + 1}, End month: ${end.getMonth() + 1}`);
+
+        // Get student ID as ObjectId
+        const studentId = req.studentId;
+        
+        // Convert to ObjectId if it's a string
+        let studentObjectId = studentId;
+        if (typeof studentId === 'string' && mongoose.Types.ObjectId.isValid(studentId)) {
+            studentObjectId = new mongoose.Types.ObjectId(studentId);
+        }
+        
+        console.log(`[Attendance Stats API] studentId=${studentId}, type=${typeof studentId}`);
+        
+        const student = await Student.findById(studentObjectId).select('_id').lean();
+        if (!student) {
+            console.log(`[Attendance Stats API] Student not found`);
+            return res.status(404).json({ error: 'Student not found' });
+        }
+
+        // Collect all months in the date range
+        const months = [];
+        const startYear = start.getFullYear();
+        const startMonth = start.getMonth(); // 0-11
+        const endYear = end.getFullYear();
+        const endMonth = end.getMonth(); // 0-11
+        
+        let currentYear = startYear;
+        let currentMonth = startMonth;
+        
+        while (currentYear < endYear || (currentYear === endYear && currentMonth <= endMonth)) {
+            months.push({ 
+                year: currentYear, 
+                month: currentMonth + 1  // Convert to 1-12
+            });
+            
+            // Move to next month
+            currentMonth++;
+            if (currentMonth > 11) {
+                currentMonth = 0;
+                currentYear++;
+            }
+        }
+
+        console.log(`[Attendance Stats API] Searching months:`, months);
+
+        // Fetch all monthly attendance records using ObjectId
+        const monthlyRecords = await MonthlyAttendance.find({
+            student_id: studentObjectId,
+            $or: months.map(m => ({ year: m.year, month: m.month }))
+        }).lean();
+
+        console.log(`[Attendance Stats API] Found ${monthlyRecords.length} records`);
+
+        // Build attendance map (date -> status) and accumulate TOTAL counts
+        // IMPORTANT: Totals are cumulative across ALL months in the date range
+        // This gives the student their total attendance for the selected period
+        const attendanceByDate = new Map();
+        let totalPresent = 0, totalAbsent = 0, totalHomePass = 0;
+
+        monthlyRecords.forEach(record => {
+            console.log(`[Attendance Stats API] Processing record: year=${record.year}, month=${record.month}`);
+            
+            // Accumulate summary counts from pre-computed MongoDB summary
+            // Each monthly record has a summary that's auto-calculated by pre-save hook
+            if (record.summary) {
+                totalPresent += record.summary.present || 0;
+                totalAbsent += record.summary.absent || 0;
+                totalHomePass += record.summary.home_pass || 0;
+                console.log(`[Attendance Stats API] Added summary: P=${record.summary.present}, A=${record.summary.absent}, H=${record.summary.home_pass}`);
+            }
+
+            // Map each day in attendance for calendar display
+            // .lean() returns plain object (not Map), so use Object.entries()
+            if (record.attendance) {
+                Object.entries(record.attendance).forEach(([day, status]) => {
+                    const dateStr = `${record.year}-${String(record.month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                    attendanceByDate.set(dateStr, status);
+                });
+            }
+        });
+
+        const totalMarked = totalPresent + totalAbsent + totalHomePass;
+        const attendanceRate = totalMarked > 0 ? Math.round((totalPresent / totalMarked) * 100) : 0;
+
+        console.log(`[Attendance Stats API] Totals: P=${totalPresent}, A=${totalAbsent}, H=${totalHomePass}, Rate=${attendanceRate}%`);
+
+        // Build time series for each day in range
+        const days = [];
+        const iterDate = new Date(start);
+        while (iterDate <= end) {
+            const year = iterDate.getFullYear();
+            const month = String(iterDate.getMonth() + 1).padStart(2, '0');
+            const day = String(iterDate.getDate()).padStart(2, '0');
+            const dateStr = `${year}-${month}-${day}`;
+            
+            const status = attendanceByDate.get(dateStr) || null;
+            let present = 0, absent = 0, homePass = 0;
+            if (status === 'P') present = 1;
+            else if (status === 'A') absent = 1;
+            else if (status === 'H') homePass = 1;
+
+            days.push({
+                date: dateStr,
+                present,
+                absent,
+                homePass
+            });
+            
+            iterDate.setDate(iterDate.getDate() + 1);
+        }
+
+        console.log(`[Attendance Stats API] Returning ${days.length} days`);
+
+        const formatDate = (d) => {
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        };
+
+        res.json({
+            range: { from: formatDate(start), to: formatDate(end) },
+            present: totalPresent,
+            absent: totalAbsent,
+            homePass: totalHomePass,
+            totalMarked,
+            attendanceRate,
+            series: days
+        });
+    } catch (error) {
+        console.error('[Attendance Stats API] Error:', error);
+        res.status(500).json({ error: error.message });
+    }
+}));
+
+// Recent attendance records for the student
+// GET /student-api/attendance/recent?limit=20
+studentApp.get('/attendance/recent', verifyStudent, expressAsyncHandler(async (req, res) => {
+    try {
+        const limit = Math.min(parseInt(req.query.limit || '20', 10), 100);
+        const studentId = req.studentId;
+
+        // Fetch recent monthly records (last few months)
+        const now = new Date();
+        const months = [];
+        for (let i = 0; i < 4; i++) {
+            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            months.push({ year: d.getFullYear(), month: d.getMonth() + 1 });
+        }
+
+        const monthlyRecords = await MonthlyAttendance.find({
+            student_id: studentId,
+            $or: months.map(m => ({ year: m.year, month: m.month }))
+        }).sort({ year: -1, month: -1 }).lean();
+
+        // Convert to recent attendance records
+        const records = [];
+        monthlyRecords.forEach(record => {
+            if (record.attendance && typeof record.attendance === 'object') {
+                // Handle Map-like object from lean()
+                Object.entries(record.attendance).forEach(([day, status]) => {
+                    records.push({
+                        date: `${record.year}-${String(record.month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
+                        status: status === 'P' ? 'present' : status === 'A' ? 'absent' : 'home_pass',
+                        roomNumber: null,
+                        floor: null,
+                        markedAt: record.updatedAt
+                    });
+                });
+            }
+        });
+
+        // Sort by date descending and limit
+        records.sort((a, b) => new Date(b.date) - new Date(a.date));
+        res.json(records.slice(0, limit).map(r => ({
+            date: r.date,
+            status: r.status,
+            roomNumber: r.roomNumber,
+            floor: r.floor,
+            markedAt: r.markedAt
+        })));
+    } catch (error) {
+        console.error('Recent attendance error:', error);
         res.status(500).json({ error: error.message });
     }
 }));
