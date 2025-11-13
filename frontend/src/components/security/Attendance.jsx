@@ -29,6 +29,20 @@ const Attendance = () => {
   const [notification, setNotification] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [editedRooms, setEditedRooms] = useState(new Set()); // Track which rooms have unsaved changes
+  const [withinWindow, setWithinWindow] = useState(() => {
+    const h = new Date().getHours();
+    return h >= 21 || h < 4;
+  });
+
+  useEffect(() => {
+    const tick = () => {
+      const h = new Date().getHours();
+      setWithinWindow(h >= 21 || h < 4);
+    };
+    tick();
+    const id = setInterval(tick, 60000);
+    return () => clearInterval(id);
+  }, []);
 
   // Helper function to check if selected date is today
   const isToday = () => {
@@ -219,9 +233,12 @@ const Attendance = () => {
   };
 
   const saveRoomAttendance = async (room) => {
-    // Prevent saving for past dates
     if (!isToday()) {
       showNotification('Cannot mark attendance for past dates. Only today\'s attendance can be marked.', 'error');
+      return;
+    }
+    if (!withinWindow) {
+      showNotification('Attendance can be taken only between 9:00 PM and 4:00 AM. Please return after 9:00 PM.', 'error');
       return;
     }
 
@@ -302,7 +319,7 @@ const Attendance = () => {
       } else if (error.response?.status === 401) {
         errorMsg = 'Authentication failed. Please login again.';
       } else if (error.response?.status === 403) {
-        errorMsg = 'Access denied. Please check your permissions.';
+        errorMsg = 'Attendance can be taken only between 9:00 PM and 4:00 AM. Please return after 9:00 PM.';
       } else if (error.response?.status === 400) {
         errorMsg = error.response?.data?.message || 'Invalid request data. Please refresh and try again.';
       } else if (error.response?.status >= 500) {
@@ -405,8 +422,10 @@ const Attendance = () => {
               <input
                 type="date"
                 value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                max={new Date().toISOString().split('T')[0]}
+                min={selectedDate}
+                max={selectedDate}
+                readOnly
+                disabled
                 className="date-input-compact"
               />
             </div>
@@ -435,6 +454,23 @@ const Attendance = () => {
           </div>
         </div>
       </div>
+
+      {(!withinWindow) && (
+        <div style={{
+          backgroundColor: '#e0f2fe',
+          border: '1px solid #38bdf8',
+          borderRadius: '8px',
+          padding: '12px 16px',
+          margin: '16px 0',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          color: '#0c4a6e'
+        }}>
+          <AlertCircle size={20} />
+          <span><strong>Not available:</strong> Attendance can be taken between 9:00 PM and 4:00 AM. Please return after 9:00 PM.</span>
+        </div>
+      )}
 
       {/* Warning banner for past dates */}
       {!isToday() && (
@@ -544,11 +580,11 @@ const Attendance = () => {
                             style={{
                               backgroundColor: student.status === 'present' ? getStatusColor('present') : '#f5f5f5',
                               color: student.status === 'present' ? '#fff' : '#666',
-                              opacity: !isToday() ? 0.6 : 1,
-                              cursor: !isToday() ? 'not-allowed' : 'pointer'
+                              opacity: (!isToday() || !withinWindow) ? 0.6 : 1,
+                              cursor: (!isToday() || !withinWindow) ? 'not-allowed' : 'pointer'
                             }}
-                            onClick={() => isToday() && handleStatusChange(room._id, student._id, 'present')}
-                            disabled={!isToday()}
+                            onClick={() => (isToday() && withinWindow) && handleStatusChange(room._id, student._id, 'present')}
+                            disabled={!isToday() || !withinWindow}
                           >
                             <CheckCircle size={16} />
                           </button>
@@ -557,11 +593,11 @@ const Attendance = () => {
                             style={{
                               backgroundColor: student.status === 'absent' ? getStatusColor('absent') : '#f5f5f5',
                               color: student.status === 'absent' ? '#fff' : '#666',
-                              opacity: !isToday() ? 0.6 : 1,
-                              cursor: !isToday() ? 'not-allowed' : 'pointer'
+                              opacity: (!isToday() || !withinWindow) ? 0.6 : 1,
+                              cursor: (!isToday() || !withinWindow) ? 'not-allowed' : 'pointer'
                             }}
-                            onClick={() => isToday() && handleStatusChange(room._id, student._id, 'absent')}
-                            disabled={!isToday()}
+                            onClick={() => (isToday() && withinWindow) && handleStatusChange(room._id, student._id, 'absent')}
+                            disabled={!isToday() || !withinWindow}
                           >
                             <XCircle size={16} />
                           </button>
@@ -571,11 +607,11 @@ const Attendance = () => {
                               style={{
                                 backgroundColor: student.status === 'home_pass_approved' ? getStatusColor('home_pass_approved') : '#f5f5f5',
                                 color: student.status === 'home_pass_approved' ? '#fff' : '#666',
-                                opacity: !isToday() ? 0.6 : 1,
-                                cursor: !isToday() ? 'not-allowed' : 'pointer'
+                                opacity: (!isToday() || !withinWindow) ? 0.6 : 1,
+                                cursor: (!isToday() || !withinWindow) ? 'not-allowed' : 'pointer'
                               }}
-                              onClick={() => isToday() && handleStatusChange(room._id, student._id, 'home_pass_approved')}
-                              disabled={!isToday()}
+                              onClick={() => (isToday() && withinWindow) && handleStatusChange(room._id, student._id, 'home_pass_approved')}
+                              disabled={!isToday() || !withinWindow}
                             >
                               <Home size={16} />
                             </button>
@@ -591,11 +627,11 @@ const Attendance = () => {
                 <button
                   className="save-room-btn"
                   onClick={() => saveRoomAttendance(room)}
-                  disabled={saving || !isToday()}
-                  title={!isToday() ? 'Cannot edit past attendance' : ''}
+                  disabled={saving || !isToday() || !withinWindow}
+                  title={!isToday() ? 'Cannot edit past attendance' : (!withinWindow ? 'Available 9:00 PM - 4:00 AM' : '')}
                 >
                   <Save size={16} />
-                  {!isToday() ? 'View Only' : 'Save Room'}
+                  {(!isToday() || !withinWindow) ? 'View Only' : 'Save Room'}
                 </button>
               </div>
               );

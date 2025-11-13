@@ -131,103 +131,155 @@ adminAttendanceRouter.get('/kpi', expressAsyncHandler(async (req, res) => {
   }
 }));
 
-// Export attendance CSV for a date (optionally filtered by floor)
+// Export attendance for a date. CSV when format=csv; JSON otherwise. Optional floor filter.
 adminAttendanceRouter.get('/export', expressAsyncHandler(async (req, res) => {
   try {
-    const { date, floors } = req.query;
+    const { date, floors, format = 'csv' } = req.query;
     const inputDate = date || new Date().toISOString().split('T')[0];
     const attendanceDate = new Date(inputDate);
     attendanceDate.setHours(0, 0, 0, 0);
     const nextDay = new Date(attendanceDate);
     nextDay.setDate(nextDay.getDate() + 1);
 
-    // Build roster from rooms and occupants (respect floor filter if provided)
-    const roomMatch = floors && floors !== '' ? { floor: parseInt(floors, 10) } : {};
-    const rooms = await Room.find(roomMatch)
-      .select('roomNumber floor occupants')
-      .populate({ path: 'occupants', select: 'rollNumber name email phoneNumber' })
-      .sort({ roomNumber: 1 })
-      .lean();
+    if (String(format).toLowerCase() === 'csv') {
+      // Build roster from rooms and occupants (respect floor filter if provided)
+      const roomMatch = floors && floors !== '' ? { floor: parseInt(floors, 10) } : {};
+      const rooms = await Room.find(roomMatch)
+        .select('roomNumber floor occupants')
+        .populate({ path: 'occupants', select: 'rollNumber name email phoneNumber' })
+        .sort({ roomNumber: 1 })
+        .lean();
 
-    // Flatten students with room context
-    const roster = [];
-    for (const r of rooms) {
-      for (const s of r.occupants) {
-        roster.push({
-          rollNumber: s.rollNumber,
-          name: s.name,
-          roomNumber: r.roomNumber,
-          floor: r.floor
-        });
+      // Flatten students with room context
+      const roster = [];
+      for (const r of rooms) {
+        for (const s of r.occupants) {
+          roster.push({
+            rollNumber: s.rollNumber,
+            name: s.name,
+            roomNumber: r.roomNumber,
+            floor: r.floor
+          });
+        }
       }
+
+      // Attendance records map by rollNumber for date
+      const attendanceRecords = await AttendanceRecord.find({
+        date: { $gte: attendanceDate, $lt: nextDay },
+        ...(floors && floors !== '' ? { floor: parseInt(floors, 10) } : {})
+      }).select('rollNumber status markedAt').lean();
+
+      const attendanceMap = new Map();
+      attendanceRecords.forEach(rec => {
+        attendanceMap.set(rec.rollNumber, { status: rec.status, markedAt: rec.markedAt });
+      });
+
+      // Outpass overlap map for the selected day (home/late pass used and approved)
+      const outpasses = await Outpass.find({
+        type: { $in: ['home pass', 'late pass'] },
+        $or: [
+          { status: 'out', $or: [ { actualOutTime: { $gte: attendanceDate, $lt: nextDay } }, { outTime: { $lt: nextDay }, inTime: { $gte: attendanceDate } } ] },
+          { status: 'approved', outTime: { $gte: attendanceDate, $lt: nextDay } }
+        ]
+      }).select('rollNumber type status actualOutTime outTime').lean();
+
+      const outpassMap = new Map();
+      outpasses.forEach(p => {
+        const used = p.status === 'out';
+        const key = p.rollNumber;
+        const status = p.type === 'home pass'
+          ? (used ? 'home_pass_used' : 'home_pass_approved')
+          : (used ? 'late_pass_used' : 'late_pass_approved');
+        const markedAt = p.actualOutTime || p.outTime || null;
+        outpassMap.set(key, { status, markedAt });
+      });
+
+      // Build CSV rows
+      const headers = ['slno', 'roll', 'name', 'room', 'status', 'marked_at'];
+      const rows = [headers.join(',')];
+      let slno = 1;
+      roster.forEach(s => {
+        // default: unmarked (no attendance and no overlapping outpass)
+        let status = 'unmarked';
+        let markedAt = '';
+        if (attendanceMap.has(s.rollNumber)) {
+          const rec = attendanceMap.get(s.rollNumber);
+          status = rec.status || 'unmarked';
+          markedAt = rec.markedAt ? new Date(rec.markedAt).toISOString() : '';
+        } else if (outpassMap.has(s.rollNumber)) {
+          const op = outpassMap.get(s.rollNumber);
+          status = op.status;
+          markedAt = op.markedAt ? new Date(op.markedAt).toISOString() : '';
+        }
+        const line = [
+          slno,
+          s.rollNumber,
+          (s.name || '').replace(/,/g, ' '),
+          s.roomNumber,
+          status,
+          markedAt
+        ].join(',');
+        rows.push(line);
+        slno += 1;
+      });
+
+      const csv = rows.join('\n');
+      const filename = `attendance-${attendanceDate.toISOString().split('T')[0]}${floors && floors !== '' ? `-floor-${floors}` : ''}.csv`;
+
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      return res.status(200).send(csv);
     }
 
-    // Attendance records map by rollNumber for date
-    const attendanceRecords = await AttendanceRecord.find({
-      date: { $gte: attendanceDate, $lt: nextDay },
-      ...(floors && floors !== '' ? { floor: parseInt(floors, 10) } : {})
-    }).select('rollNumber status markedAt').lean();
-
-    const attendanceMap = new Map();
-    attendanceRecords.forEach(rec => {
-      attendanceMap.set(rec.rollNumber, { status: rec.status, markedAt: rec.markedAt });
-    });
-
-    // Outpass overlap map for the selected day (home/late pass used and approved)
-    const outpasses = await Outpass.find({
-      type: { $in: ['home pass', 'late pass'] },
-      $or: [
-        { status: 'out', $or: [ { actualOutTime: { $gte: attendanceDate, $lt: nextDay } }, { outTime: { $lt: nextDay }, inTime: { $gte: attendanceDate } } ] },
-        { status: 'approved', outTime: { $gte: attendanceDate, $lt: nextDay } }
-      ]
-    }).select('rollNumber type status actualOutTime outTime').lean();
-
-    const outpassMap = new Map();
-    outpasses.forEach(p => {
-      const used = p.status === 'out';
-      const key = p.rollNumber;
-      const status = p.type === 'home pass'
-        ? (used ? 'home_pass_used' : 'home_pass_approved')
-        : (used ? 'late_pass_used' : 'late_pass_approved');
-      const markedAt = p.actualOutTime || p.outTime || null;
-      outpassMap.set(key, { status, markedAt });
-    });
-
-    // Build CSV rows
-    const headers = ['slno', 'roll', 'name', 'room', 'status', 'marked_at'];
-    const rows = [headers.join(',')];
-    let slno = 1;
-    roster.forEach(s => {
-      // default: unmarked (no attendance and no overlapping outpass)
-      let status = 'unmarked';
-      let markedAt = '';
-      if (attendanceMap.has(s.rollNumber)) {
-        const rec = attendanceMap.get(s.rollNumber);
-        status = rec.status || 'unmarked';
-        markedAt = rec.markedAt ? new Date(rec.markedAt).toISOString() : '';
-      } else if (outpassMap.has(s.rollNumber)) {
-        const op = outpassMap.get(s.rollNumber);
-        status = op.status;
-        markedAt = op.markedAt ? new Date(op.markedAt).toISOString() : '';
+    // JSON format: detailed records with joins (includes markedByName)
+    const exportData = await AttendanceRecord.aggregate([
+      { $match: { 
+        date: { $gte: attendanceDate, $lt: nextDay },
+        ...(floors && floors !== '' ? { floor: parseInt(floors, 10) } : {})
+      } },
+      {
+        $lookup: {
+          from: 'students',
+          localField: 'studentId',
+          foreignField: '_id',
+          as: 'student'
+        }
+      },
+      {
+        $lookup: {
+          from: 'rooms',
+          localField: 'roomNumber',
+          foreignField: 'roomNumber',
+          as: 'room'
+        }
+      },
+      {
+        $lookup: {
+          from: 'guards',
+          localField: 'markedBy',
+          foreignField: '_id',
+          as: 'guard'
+        }
+      },
+      { $unwind: '$student' },
+      { $unwind: '$room' },
+      { $unwind: { path: '$guard', preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          date: 1,
+          floor: 1,
+          roomNumber: 1,
+          studentName: '$student.name',
+          rollNumber: '$student.rollNumber',
+          status: 1,
+          markedAt: '$createdAt',
+          markedBy: 1,
+          markedByName: '$guard.name'
+        }
       }
-      const line = [
-        slno,
-        s.rollNumber,
-        (s.name || '').replace(/,/g, ' '),
-        s.roomNumber,
-        status,
-        markedAt
-      ].join(',');
-      rows.push(line);
-      slno += 1;
-    });
+    ]);
 
-    const csv = rows.join('\n');
-    const filename = `attendance-${attendanceDate.toISOString().split('T')[0]}${floors && floors !== '' ? `-floor-${floors}` : ''}.csv`;
-
-    res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    return res.status(200).send(csv);
+    return res.json(exportData);
   } catch (error) {
     console.error('Admin Attendance - export error:', error);
     res.status(500).json({ error: error.message });
@@ -571,78 +623,7 @@ adminAttendanceRouter.get('/homepass-flow', expressAsyncHandler(async (req, res)
   }
 }));
 
-// Export endpoint
-adminAttendanceRouter.get('/export', expressAsyncHandler(async (req, res) => {
-  try {
-    const { date, format = 'csv' } = req.query;
-    const attendanceDate = new Date(date || new Date().toISOString().split('T')[0]);
-    attendanceDate.setHours(0, 0, 0, 0);
-    const nextDay = new Date(attendanceDate);
-    nextDay.setDate(nextDay.getDate() + 1);
-    
-    // Get comprehensive attendance data
-    const exportData = await AttendanceRecord.aggregate([
-      { $match: { date: { $gte: attendanceDate, $lt: nextDay } } },
-      {
-        $lookup: {
-          from: 'students',
-          localField: 'studentId',
-          foreignField: '_id',
-          as: 'student'
-        }
-      },
-      {
-        $lookup: {
-          from: 'rooms',
-          localField: 'roomNumber',
-          foreignField: 'roomNumber',
-          as: 'room'
-        }
-      },
-      {
-        $lookup: {
-          from: 'guards',
-          localField: 'markedBy',
-          foreignField: '_id',
-          as: 'guard'
-        }
-      },
-      { $unwind: '$student' },
-      { $unwind: '$room' },
-      { $unwind: { path: '$guard', preserveNullAndEmptyArrays: true } },
-      {
-        $project: {
-          date: 1,
-          floor: 1,
-          roomNumber: 1,
-          studentName: '$student.name',
-          rollNumber: '$student.rollNumber',
-          status: 1,
-          markedAt: '$createdAt',
-          markedBy: 1,
-          markedByName: '$guard.name'
-        }
-      }
-    ]);
-    
-    if (format === 'csv') {
-      const csv = [
-        'Date,Floor,Room,Student Name,Roll Number,Status,Marked At,Marked By',
-        ...exportData.map(record => 
-          `${record.date.toISOString().split('T')[0]},${record.floor},${record.roomNumber},"${record.studentName}",${record.rollNumber},${record.status},${record.markedAt.toISOString()},${record.markedBy}`
-        )
-      ].join('\n');
-      
-      res.setHeader('Content-Type', 'text/csv');
-      res.setHeader('Content-Disposition', `attachment; filename=attendance-${date}.csv`);
-      res.send(csv);
-    } else {
-      res.json(exportData);
-    }
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-}));
+// (Removed duplicate /export endpoint by merging logic above)
 
 // Floors filter endpoint
 adminAttendanceRouter.get('/floors-list', expressAsyncHandler(async (req, res) => {
