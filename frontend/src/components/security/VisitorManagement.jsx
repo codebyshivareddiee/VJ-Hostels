@@ -3,6 +3,7 @@ import { X, Search, Shield, Clock, AlertCircle, ChevronDown } from 'lucide-react
 import { otpAPI, studentAPI, overrideAPI } from '../../securityServices/api';
 import socketService from '../../securityServices/socket';
 import { useAuth } from '../../context/SecurityContext';
+import { toast } from 'react-hot-toast';
 
 /**
  * Guard.jsx
@@ -236,12 +237,12 @@ const Guard = () => {
         urgency: 'medium'
       });
 
-      if (response.data.success) {
+        if (response.data.success) {
         setOtpStatus('override_requested');
         setError(null);
         // optionally show message
         setTimeout(() => {
-          alert(response.data.message || 'Override requested');
+          toast.success(response.data.message || 'Override requested');
         }, 200);
       } else {
         setError(response.data.message || 'Override request failed');

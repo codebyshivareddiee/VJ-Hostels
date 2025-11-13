@@ -49,6 +49,7 @@ studentApp.post('/login', expressAsyncHandler(async (req, res) => {
                 rollNumber: student.rollNumber,
                 branch: student.branch,
                 year: student.year,
+                room: student.room,
                 profilePhoto: student.profilePhoto,
                 phoneNumber: student.phoneNumber || '',
                 parentMobileNumber: student.parentMobileNumber || '',
@@ -103,6 +104,7 @@ studentApp.get('/profile', verifyStudent, expressAsyncHandler(async (req, res) =
             rollNumber: student.rollNumber,
             branch: student.branch,
             year: student.year,
+            room: student.room,
             profilePhoto: student.profilePhoto,
             phoneNumber: student.phoneNumber || '',
             parentMobileNumber: student.parentMobileNumber || '',
@@ -294,6 +296,10 @@ studentApp.post('/apply-outpass', expressAsyncHandler(async (req, res) => {
             });
         }
 
+        // Fetch student to get their year
+        const student = await Student.findOne({ rollNumber });
+        const studentYear = student?.year || null;
+
         // Check for offensive content in reason
         const offensiveCheck = await checkOffensiveContent(reason);
         if (offensiveCheck.isOffensive) {
@@ -357,6 +363,7 @@ studentApp.post('/apply-outpass', expressAsyncHandler(async (req, res) => {
             type,
             month: currentMonth,
             year: currentYear,
+            studentYear, // Add student's batch year
             status: 'pending'
         });
 
@@ -372,7 +379,7 @@ studentApp.post('/apply-outpass', expressAsyncHandler(async (req, res) => {
 studentApp.get('/all-outpasses/:rollNumber', expressAsyncHandler(async (req, res) => {
     try {
         const { rollNumber } = req.params;
-        const studentOutpasses = await Outpass.find({ rollNumber });
+        const studentOutpasses = await Outpass.find({ rollNumber }).sort({ createdAt: -1 });
         if (!studentOutpasses.length) {
             return res.status(404).json({ message: 'No outpass requests found for this student' });
         }

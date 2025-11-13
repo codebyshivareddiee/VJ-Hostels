@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Row, Col, Table, Badge, Button, Modal, Form, Alert } from 'react-bootstrap';
 import { Eye, Users, Clock, Calendar, Search, Filter, Download, AlertCircle } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 import {FiRefreshCcw} from 'react-icons/fi';
 import axios from 'axios';
 
@@ -93,9 +94,9 @@ const Visitors = () => {
         //   }));
         // }
 
-      } catch (error) {
+        } catch (error) {
         if (error.response?.status === 403) {
-          alert('Admin access required');
+          toast.error('Admin access required');
           window.location.href = '/admin/login';
         }
         throw error;
@@ -134,17 +135,16 @@ const Visitors = () => {
       }
     } catch (error) {
       if (error.response?.status === 403) {
-        alert('Session expired. Please login again.');
+        toast.error('Session expired. Please login again.');
         window.location.href = '/admin/login';
       }
-      console.error('Error loading date visitors:', error);
       setDateVisitors([]);
     }
   };
 
   const handleProcessOverride = async () => {
     if (!overrideDecision) {
-      alert('Please select approve or reject');
+      toast.error('Please select approve or reject');
       return;
     }
 
@@ -171,7 +171,7 @@ const Visitors = () => {
       );
 
       if (response.data.success) {
-        alert(`Override request ${overrideDecision}!`);
+        toast.success(`Override request ${overrideDecision}!`);
         setShowOverrideModal(false);
         setOverrideDecision('');
         setOverrideNotes('');
@@ -180,7 +180,7 @@ const Visitors = () => {
       }
     } catch (error) {
       if (error.response?.status === 403) {
-        alert('You do not have permission to process overrides');
+        toast.error('You do not have permission to process overrides');
         window.location.href = '/admin/login';
       }
       console.error('Error processing override:', error);

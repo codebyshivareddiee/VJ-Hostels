@@ -89,16 +89,200 @@ adminAttendanceRouter.get('/kpi', expressAsyncHandler(async (req, res) => {
       return acc;
     }, {});
 
+    // Compute Home Pass (Used) from Outpass, then optionally filter by floor using student's current room
+    const nextDayForOutpass = new Date(attendanceDate);
+    nextDayForOutpass.setDate(nextDayForOutpass.getDate() + 1);
+
+    const outpassMatch = {
+      status: 'out',
+      type: 'home pass',
+      $or: [
+        { actualOutTime: { $gte: attendanceDate, $lt: nextDayForOutpass } },
+        { outTime: { $lt: nextDayForOutpass }, inTime: { $gte: attendanceDate } }
+      ]
+    };
+
+    const activeHomePasses = await Outpass.find(outpassMatch).select('rollNumber name status type actualOutTime outTime inTime').lean();
+    let homePassUsedCount = activeHomePasses.length;
+    if (floors && floors !== '') {
+      const floorNumber = parseInt(floors, 10);
+      // Resolve each rollNumber to student's room and filter by floor
+      const filtered = [];
+      for (const p of activeHomePasses) {
+        const student = await Student.findOne({ rollNumber: p.rollNumber }).select('_id').lean();
+        if (!student?._id) continue;
+        const room = await Room.findOne({ occupants: student._id }).select('floor').lean();
+        if (room && room.floor === floorNumber) filtered.push(p);
+      }
+      homePassUsedCount = filtered.length;
+    }
+
     res.json({
       totalStudents,
       presentCount: statusCounts.present || 0,
       absentCount: statusCounts.absent || 0,
-      homePassUsedCount: statusCounts.home_pass_used || 0,
+      homePassUsedCount,
       roomsCompleted: completedRooms.length,
       totalRooms
     });
   } catch (error) {
     console.error('Admin Analytics - KPI error:', error);
+    res.status(500).json({ error: error.message });
+  }
+}));
+
+// Export attendance CSV for a date (optionally filtered by floor)
+adminAttendanceRouter.get('/export', expressAsyncHandler(async (req, res) => {
+  try {
+    const { date, floors } = req.query;
+    const inputDate = date || new Date().toISOString().split('T')[0];
+    const attendanceDate = new Date(inputDate);
+    attendanceDate.setHours(0, 0, 0, 0);
+    const nextDay = new Date(attendanceDate);
+    nextDay.setDate(nextDay.getDate() + 1);
+
+    // Build roster from rooms and occupants (respect floor filter if provided)
+    const roomMatch = floors && floors !== '' ? { floor: parseInt(floors, 10) } : {};
+    const rooms = await Room.find(roomMatch)
+      .select('roomNumber floor occupants')
+      .populate({ path: 'occupants', select: 'rollNumber name email phoneNumber' })
+      .sort({ roomNumber: 1 })
+      .lean();
+
+    // Flatten students with room context
+    const roster = [];
+    for (const r of rooms) {
+      for (const s of r.occupants) {
+        roster.push({
+          rollNumber: s.rollNumber,
+          name: s.name,
+          roomNumber: r.roomNumber,
+          floor: r.floor
+        });
+      }
+    }
+
+    // Attendance records map by rollNumber for date
+    const attendanceRecords = await AttendanceRecord.find({
+      date: { $gte: attendanceDate, $lt: nextDay },
+      ...(floors && floors !== '' ? { floor: parseInt(floors, 10) } : {})
+    }).select('rollNumber status markedAt').lean();
+
+    const attendanceMap = new Map();
+    attendanceRecords.forEach(rec => {
+      attendanceMap.set(rec.rollNumber, { status: rec.status, markedAt: rec.markedAt });
+    });
+
+    // Outpass overlap map for the selected day (home/late pass used and approved)
+    const outpasses = await Outpass.find({
+      type: { $in: ['home pass', 'late pass'] },
+      $or: [
+        { status: 'out', $or: [ { actualOutTime: { $gte: attendanceDate, $lt: nextDay } }, { outTime: { $lt: nextDay }, inTime: { $gte: attendanceDate } } ] },
+        { status: 'approved', outTime: { $gte: attendanceDate, $lt: nextDay } }
+      ]
+    }).select('rollNumber type status actualOutTime outTime').lean();
+
+    const outpassMap = new Map();
+    outpasses.forEach(p => {
+      const used = p.status === 'out';
+      const key = p.rollNumber;
+      const status = p.type === 'home pass'
+        ? (used ? 'home_pass_used' : 'home_pass_approved')
+        : (used ? 'late_pass_used' : 'late_pass_approved');
+      const markedAt = p.actualOutTime || p.outTime || null;
+      outpassMap.set(key, { status, markedAt });
+    });
+
+    // Build CSV rows
+    const headers = ['slno', 'roll', 'name', 'room', 'status', 'marked_at'];
+    const rows = [headers.join(',')];
+    let slno = 1;
+    roster.forEach(s => {
+      // default: unmarked (no attendance and no overlapping outpass)
+      let status = 'unmarked';
+      let markedAt = '';
+      if (attendanceMap.has(s.rollNumber)) {
+        const rec = attendanceMap.get(s.rollNumber);
+        status = rec.status || 'unmarked';
+        markedAt = rec.markedAt ? new Date(rec.markedAt).toISOString() : '';
+      } else if (outpassMap.has(s.rollNumber)) {
+        const op = outpassMap.get(s.rollNumber);
+        status = op.status;
+        markedAt = op.markedAt ? new Date(op.markedAt).toISOString() : '';
+      }
+      const line = [
+        slno,
+        s.rollNumber,
+        (s.name || '').replace(/,/g, ' '),
+        s.roomNumber,
+        status,
+        markedAt
+      ].join(',');
+      rows.push(line);
+      slno += 1;
+    });
+
+    const csv = rows.join('\n');
+    const filename = `attendance-${attendanceDate.toISOString().split('T')[0]}${floors && floors !== '' ? `-floor-${floors}` : ''}.csv`;
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    return res.status(200).send(csv);
+  } catch (error) {
+    console.error('Admin Attendance - export error:', error);
+    res.status(500).json({ error: error.message });
+  }
+}));
+
+// Home Pass (Used) Students List for Analytics
+adminAttendanceRouter.get('/homepass-list', expressAsyncHandler(async (req, res) => {
+  try {
+    const { date, floors } = req.query;
+    const attendanceDate = new Date(date || new Date().toISOString().split('T')[0]);
+    attendanceDate.setHours(0, 0, 0, 0);
+    const nextDay = new Date(attendanceDate);
+    nextDay.setDate(nextDay.getDate() + 1);
+
+    const outpassQuery = {
+      status: 'out',
+      type: 'home pass',
+      $or: [
+        { actualOutTime: { $gte: attendanceDate, $lt: nextDay } },
+        { outTime: { $lt: nextDay }, inTime: { $gte: attendanceDate } }
+      ]
+    };
+
+    const activeHomePasses = await Outpass.find(outpassQuery).lean();
+
+    // Enrich with student and room details
+    let results = await Promise.all(activeHomePasses.map(async (p) => {
+      const student = await Student.findOne({ rollNumber: p.rollNumber }).select('name email phoneNumber rollNumber').lean();
+      let roomInfo = null;
+      if (student?._id) {
+        const room = await Room.findOne({ occupants: student._id }).select('roomNumber floor').lean();
+        if (room) roomInfo = { roomNumber: room.roomNumber, floor: room.floor };
+      }
+      return {
+        rollNumber: p.rollNumber,
+        name: student?.name || p.name,
+        type: p.type,
+        status: p.status,
+        outTime: p.actualOutTime || p.outTime,
+        expectedIn: p.inTime,
+        roomNumber: roomInfo?.roomNumber || null,
+        floor: roomInfo?.floor || null
+      };
+    }));
+
+    // If floor filter provided, filter results after enrichment
+    if (floors && floors !== '') {
+      const floorNumber = parseInt(floors, 10);
+      results = results.filter(r => r.floor === floorNumber);
+    }
+
+    res.json(results);
+  } catch (error) {
+    console.error('Admin Analytics - homepass-list error:', error);
     res.status(500).json({ error: error.message });
   }
 }));
@@ -314,12 +498,15 @@ adminAttendanceRouter.get('/alerts', expressAsyncHandler(async (req, res) => {
   try {
     const { date } = req.query;
     const attendanceDate = new Date(date || new Date().toISOString().split('T')[0]);
+    attendanceDate.setHours(0, 0, 0, 0);
+    const nextDay = new Date(attendanceDate);
+    nextDay.setDate(nextDay.getDate() + 1);
     
     const alerts = [];
     
     // Check for low completion rate
     const totalRooms = await Room.countDocuments();
-    const completedRooms = await AttendanceRecord.distinct('roomNumber', { date: attendanceDate });
+    const completedRooms = await AttendanceRecord.distinct('roomNumber', { date: { $gte: attendanceDate, $lt: nextDay } });
     const completionRate = (completedRooms.length / totalRooms) * 100;
     
     if (completionRate < 90) {
@@ -333,7 +520,7 @@ adminAttendanceRouter.get('/alerts', expressAsyncHandler(async (req, res) => {
     
     // Check for students with conflicting states
     const conflictingStudents = await AttendanceRecord.aggregate([
-      { $match: { date: attendanceDate } },
+      { $match: { date: { $gte: attendanceDate, $lt: nextDay } } },
       { $group: { _id: '$studentId', statuses: { $addToSet: '$status' }, count: { $sum: 1 } } },
       { $match: { count: { $gt: 1 } } }
     ]);
@@ -389,10 +576,13 @@ adminAttendanceRouter.get('/export', expressAsyncHandler(async (req, res) => {
   try {
     const { date, format = 'csv' } = req.query;
     const attendanceDate = new Date(date || new Date().toISOString().split('T')[0]);
+    attendanceDate.setHours(0, 0, 0, 0);
+    const nextDay = new Date(attendanceDate);
+    nextDay.setDate(nextDay.getDate() + 1);
     
     // Get comprehensive attendance data
     const exportData = await AttendanceRecord.aggregate([
-      { $match: { date: attendanceDate } },
+      { $match: { date: { $gte: attendanceDate, $lt: nextDay } } },
       {
         $lookup: {
           from: 'students',
@@ -409,8 +599,17 @@ adminAttendanceRouter.get('/export', expressAsyncHandler(async (req, res) => {
           as: 'room'
         }
       },
+      {
+        $lookup: {
+          from: 'guards',
+          localField: 'markedBy',
+          foreignField: '_id',
+          as: 'guard'
+        }
+      },
       { $unwind: '$student' },
       { $unwind: '$room' },
+      { $unwind: { path: '$guard', preserveNullAndEmptyArrays: true } },
       {
         $project: {
           date: 1,
@@ -420,7 +619,8 @@ adminAttendanceRouter.get('/export', expressAsyncHandler(async (req, res) => {
           rollNumber: '$student.rollNumber',
           status: 1,
           markedAt: '$createdAt',
-          markedBy: 1
+          markedBy: 1,
+          markedByName: '$guard.name'
         }
       }
     ]);

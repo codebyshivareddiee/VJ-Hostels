@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { useAdmin } from '../../context/AdminContext';
+import { toast } from 'react-hot-toast';
 import FoodCountManager from './FoodCountManager';
 import StudentFoodManager from './StudentFoodManager';
 import { Line, Pie, Bar } from 'react-chartjs-2';
@@ -49,6 +50,12 @@ const Food = () => {
         dinner: ''
     });
 
+    // refs to allow focusing and highlighting the active textarea inside the edit modal
+    const breakfastRef = useRef(null);
+    const lunchRef = useRef(null);
+    const snacksRef = useRef(null);
+    const dinnerRef = useRef(null);
+
     const getRotationWeek = (date = new Date()) => {
         const ROTATION_EPOCH_UTC = new Date(Date.UTC(2025, 0, 6));
         const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000;
@@ -75,6 +82,9 @@ const Food = () => {
         mealType: 'all',
         showOnlyWithComments: 'false'
     });
+
+    // Comment modal state for viewing long comments
+    const [commentModal, setCommentModal] = useState({ open: false, text: '', student: '', date: '', mealType: '' });
 
     // Helper functions
     const getRatingColor = (rating) => {
@@ -378,10 +388,42 @@ const Food = () => {
         }));
     };
 
-    const handleEditFormSubmit = async (e) => {
+    // When a cell is selected, focus the corresponding textarea inside modal and scroll it into view
+    useEffect(() => {
+        if (!selectedCell) return;
+        const refs = {
+            breakfast: breakfastRef,
+            lunch: lunchRef,
+            snacks: snacksRef,
+            dinner: dinnerRef
+        };
+        const ref = refs[selectedCell.mealType];
+        if (ref && ref.current) {
+            // small timeout to ensure modal has rendered
+            setTimeout(() => {
+                try {
+                    ref.current.focus();
+                    ref.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                } catch (e) {
+                    // ignore
+                }
+            }, 50);
+        }
+    }, [selectedCell]);
+
+    // Confirmation modal state for update action
+    const [showConfirm, setShowConfirm] = useState(false);
+
+    const handleEditFormSubmit = (e) => {
         e.preventDefault();
         if (!editFormData.week || !editFormData.day) return;
+        // Open confirmation modal before performing the update
+        setShowConfirm(true);
+    };
 
+    const confirmUpdateMenu = async () => {
+        setShowConfirm(false);
+        setMenuFormLoading(true);
         try {
             const response = await axios.put(`${import.meta.env.VITE_SERVER_URL}/food-api/menu/day`, {
                 week: editFormData.week,
@@ -394,7 +436,7 @@ const Food = () => {
                 headers: { Authorization: `Bearer ${token}` }
             });
 
-            if (response.data.success) {
+            if (response.data && response.data.success) {
                 setMonthlyMenuData(prev => ({
                     ...prev,
                     [editFormData.week]: {
@@ -417,11 +459,17 @@ const Food = () => {
                     snacks: '',
                     dinner: ''
                 });
+
+                // show confirmation toast
+                toast.success('Menu updated successfully');
+            } else {
+                // show error toast
+                toast.error('Failed to update menu. Please try again.');
             }
         } catch (error) {
-            console.error('Error updating menu:', error);
-            setMenuFormError('Failed to update menu. Please try again.');
-            setTimeout(() => setMenuFormError(''), 3000);
+            toast.error('Failed to update menu. Please try again.');
+        } finally {
+            setMenuFormLoading(false);
         }
     };
 
@@ -570,7 +618,7 @@ const Food = () => {
                     borderRadius: '12px',
                     boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
                     border: '1px solid #E5E7EB',
-                    overflow: 'hidden'
+                    overflow: 'visible' // allow inner scrollbars to be shown on small screens
                 }}>
                     <div style={{
                         backgroundColor: '#4F46E5',
@@ -684,11 +732,13 @@ const Food = () => {
                                         </h6>
                                         <div style={{
                                             borderRadius: '8px',
-                                            overflow: 'hidden',
+                                            overflowX: 'auto',
+                                            WebkitOverflowScrolling: 'touch', // smooth scrolling on iOS
                                             boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
                                             border: '1px solid #E5E7EB'
                                         }}>
-                                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+                                            {/* enforce a minimum table width so columns don't collapse on small screens */}
+                                            <table style={{ minWidth: '720px', width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
                                                 <thead style={{ backgroundColor: '#F8FAFC' }}>
                                                     <tr>
                                                         <th style={{ padding: '1rem', textAlign: 'center', fontWeight: '600', width: '12%' }}>Day</th>
@@ -761,6 +811,100 @@ const Food = () => {
                                 ))}
                             </div>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {/* Comment modal for showing large comments */}
+            {commentModal.open && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    backgroundColor: 'rgba(0,0,0,0.5)',
+                    zIndex: 1200,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '1rem'
+                }} onClick={() => setCommentModal({ open: false, text: '', student: '', date: '', mealType: '' })}>
+                    <div onClick={(e) => e.stopPropagation()} style={{
+                        backgroundColor: 'white',
+                        borderRadius: '10px',
+                        maxWidth: '720px',
+                        width: '100%',
+                        boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
+                        overflow: 'hidden'
+                    }}>
+                        <div style={{
+                            backgroundColor: '#4F46E5',
+                            color: 'white',
+                            padding: '0.75rem 1rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between'
+                        }}>
+                            <div style={{ fontWeight: 700 }}>
+                                Comment by {commentModal.student} — {commentModal.mealType ? (commentModal.mealType.charAt(0).toUpperCase() + commentModal.mealType.slice(1)) : ''}
+                            </div>
+                            <button onClick={() => setCommentModal({ open: false, text: '', student: '', date: '', mealType: '' })} style={{ background: 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.25rem' }}>×</button>
+                        </div>
+                        <div style={{ padding: '1rem', maxHeight: '70vh', overflowY: 'auto' }}>
+                            <div style={{ color: '#374151', whiteSpace: 'pre-wrap' }}>{commentModal.text}</div>
+                            <div style={{ marginTop: '1rem', color: '#64748B', fontSize: '0.9rem' }}>Date: {commentModal.date ? new Date(commentModal.date).toLocaleString() : ''}</div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {showConfirm && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    backgroundColor: 'rgba(0,0,0,0.5)',
+                    zIndex: 1101,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '1rem'
+                }}>
+                    <div style={{
+                        backgroundColor: 'white',
+                        borderRadius: '10px',
+                        maxWidth: '440px',
+                        width: '100%',
+                        boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
+                        overflow: 'hidden'
+                    }}>
+                        <div style={{
+                            backgroundColor: '#4F46E5',
+                            color: 'white',
+                            padding: '0.75rem 1rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between'
+                        }}>
+                            <strong>Confirm Update</strong>
+                            <button onClick={() => setShowConfirm(false)} style={{ background: 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.25rem' }}>×</button>
+                        </div>
+                        <div style={{ padding: '1rem' }}>
+                            <p style={{ margin: '0 0 1rem 0', color: '#374151' }}>
+                                Are you sure you want to update the menu for <strong>{selectedCell?.week} - {selectedCell?.day}</strong>? This will overwrite the existing items for this day.
+                            </p>
+                            <div style={{ display: 'flex', gap: '0.75rem' }}>
+                                <button onClick={confirmUpdateMenu} style={{ flex: 1, padding: '0.6rem', backgroundColor: '#10B981', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '600', cursor: 'pointer' }}>
+                                    {menuFormLoading ? 'Updating...' : 'Confirm'}
+                                </button>
+                                <button onClick={() => setShowConfirm(false)} style={{ flex: 1, padding: '0.6rem', backgroundColor: '#6B7280', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '600', cursor: 'pointer' }}>
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}
@@ -846,12 +990,14 @@ const Food = () => {
                                     <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>🌅 Breakfast</label>
                                     <textarea
                                         name="breakfast"
+                                        ref={breakfastRef}
                                         value={editFormData.breakfast}
                                         onChange={handleEditFormChange}
                                         style={{
                                             width: '100%',
                                             padding: '0.75rem',
-                                            border: '1px solid #E5E7EB',
+                                            border: selectedCell?.mealType === 'breakfast' ? '2px solid #4F46E5' : '1px solid #E5E7EB',
+                                            boxShadow: selectedCell?.mealType === 'breakfast' ? '0 0 0 3px rgba(79,70,229,0.08)' : 'none',
                                             borderRadius: '6px',
                                             resize: 'vertical',
                                             minHeight: '60px',
@@ -864,12 +1010,14 @@ const Food = () => {
                                     <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>☀️ Lunch</label>
                                     <textarea
                                         name="lunch"
+                                        ref={lunchRef}
                                         value={editFormData.lunch}
                                         onChange={handleEditFormChange}
                                         style={{
                                             width: '100%',
                                             padding: '0.75rem',
-                                            border: '1px solid #E5E7EB',
+                                            border: selectedCell?.mealType === 'lunch' ? '2px solid #4F46E5' : '1px solid #E5E7EB',
+                                            boxShadow: selectedCell?.mealType === 'lunch' ? '0 0 0 3px rgba(79,70,229,0.08)' : 'none',
                                             borderRadius: '6px',
                                             resize: 'vertical',
                                             minHeight: '60px',
@@ -882,12 +1030,14 @@ const Food = () => {
                                     <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>☕ Snacks</label>
                                     <textarea
                                         name="snacks"
+                                        ref={snacksRef}
                                         value={editFormData.snacks}
                                         onChange={handleEditFormChange}
                                         style={{
                                             width: '100%',
                                             padding: '0.75rem',
-                                            border: '1px solid #E5E7EB',
+                                            border: selectedCell?.mealType === 'snacks' ? '2px solid #4F46E5' : '1px solid #E5E7EB',
+                                            boxShadow: selectedCell?.mealType === 'snacks' ? '0 0 0 3px rgba(79,70,229,0.08)' : 'none',
                                             borderRadius: '6px',
                                             resize: 'vertical',
                                             minHeight: '60px',
@@ -900,12 +1050,14 @@ const Food = () => {
                                     <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>🌙 Dinner</label>
                                     <textarea
                                         name="dinner"
+                                        ref={dinnerRef}
                                         value={editFormData.dinner}
                                         onChange={handleEditFormChange}
                                         style={{
                                             width: '100%',
                                             padding: '0.75rem',
-                                            border: '1px solid #E5E7EB',
+                                            border: selectedCell?.mealType === 'dinner' ? '2px solid #4F46E5' : '1px solid #E5E7EB',
+                                            boxShadow: selectedCell?.mealType === 'dinner' ? '0 0 0 3px rgba(79,70,229,0.08)' : 'none',
                                             borderRadius: '6px',
                                             resize: 'vertical',
                                             minHeight: '60px',
@@ -1528,14 +1680,15 @@ const Food = () => {
                                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                                         <thead style={{ backgroundColor: '#F8FAFC' }}>
                                             <tr>
-                                                <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600', width: '12%' }}>Date</th>
-                                                <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600', width: '12%' }}>Meal Type</th>
-                                                <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600', width: '15%' }}>Rating</th>
-                                                <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600', width: '61%' }}>Comments</th>
-                                            </tr>
+                                                    <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600', width: '12%' }}>Date</th>
+                                                    <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600', width: '15%' }}>Student</th>
+                                                    <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600', width: '12%' }}>Meal Type</th>
+                                                    <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600', width: '15%' }}>Rating</th>
+                                                    <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600', width: '46%' }}>Comments</th>
+                                                </tr>
                                         </thead>
                                         <tbody>
-                                            {feedback.map((item, index) => (
+                                                {feedback.map((item, index) => (
                                                 <tr key={item._id || index} style={{ borderBottom: '1px solid #F1F5F9' }}>
                                                     <td style={{ padding: '0.75rem', fontSize: '0.875rem', color: '#64748B' }}>
                                                         {new Date(item.date || item.dateStr).toLocaleDateString('en-US', {
@@ -1543,6 +1696,9 @@ const Food = () => {
                                                             day: 'numeric',
                                                             year: 'numeric'
                                                         })}
+                                                    </td>
+                                                    <td style={{ padding: '0.75rem', color: '#374151', fontWeight: 600 }}>
+                                                        {item.studentName || (item.student && (item.student.name || item.student.fullName)) || item.name || 'Unknown'}
                                                     </td>
                                                     <td style={{ padding: '0.75rem' }}>
                                                         <span style={{
@@ -1554,11 +1710,7 @@ const Food = () => {
                                                             fontWeight: '500',
                                                             textTransform: 'capitalize'
                                                         }}>
-                                                            {item.mealType === 'breakfast' && '🌅 '}
-                                                            {item.mealType === 'lunch' && '☀️ '}
-                                                            {item.mealType === 'snacks' && '☕ '}
-                                                            {item.mealType === 'dinner' && '🌙 '}
-                                                            {item.mealType}
+                                                            {item.mealType ? (item.mealType.charAt(0).toUpperCase() + item.mealType.slice(1)) : '—'}
                                                         </span>
                                                     </td>
                                                     <td style={{ padding: '0.75rem' }}>
@@ -1582,10 +1734,25 @@ const Food = () => {
                                                     </td>
                                                     <td style={{ padding: '0.75rem', fontSize: '0.875rem' }}>
                                                         {item.feedback && item.feedback.trim() !== '' ? (
-                                                            <div style={{ display: 'flex', alignItems: 'start', gap: '0.5rem' }}>
-                                                                <span style={{ color: '#4F46E5', fontSize: '1rem' }}>💬</span>
-                                                                <span style={{ color: '#374151' }}>{item.feedback}</span>
-                                                            </div>
+                                                            (() => {
+                                                                const txt = item.feedback;
+                                                                const max = 80;
+                                                                if (txt.length > max) {
+                                                                    const short = txt.slice(0, max).trim() + '...';
+                                                                    return (
+                                                                        <div style={{ display: 'flex', alignItems: 'start', gap: '0.5rem' }}>
+                                                                            <span style={{ color: '#4F46E5', fontSize: '1rem' }}>💬</span>
+                                                                            <span onClick={() => setCommentModal({ open: true, text: txt, student: item.studentName || (item.student && (item.student.name || item.student.fullName)) || item.name || 'Unknown', date: item.date || item.dateStr, mealType: item.mealType })} style={{ color: '#374151', cursor: 'pointer' }}>{short}</span>
+                                                                        </div>
+                                                                    );
+                                                                }
+                                                                return (
+                                                                    <div style={{ display: 'flex', alignItems: 'start', gap: '0.5rem' }}>
+                                                                        <span style={{ color: '#4F46E5', fontSize: '1rem' }}>💬</span>
+                                                                        <span style={{ color: '#374151' }}>{txt}</span>
+                                                                    </div>
+                                                                );
+                                                            })()
                                                         ) : (
                                                             <em style={{ color: '#9CA3AF' }}>No comments provided</em>
                                                         )}

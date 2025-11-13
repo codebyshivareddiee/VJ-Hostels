@@ -2,6 +2,7 @@ import { useForm } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import axios from "axios";
+import { toast } from 'react-hot-toast';
 // Removed UserContext import - will be replaced with direct token storage
 import img5 from "../../assets/1.jpg";
 import { FiEye, FiEyeOff } from "react-icons/fi";
@@ -27,10 +28,10 @@ const StudentLogin = () => {
       // Only store the token, user data will be fetched when needed
       localStorage.setItem("token", response.data.token);
       console.log("Login successful:", response.data);
-      alert("Login Successful!");
+      toast.success("Login Successful!");
       navigate("/home");
     } catch (error) {
-      alert(error.response?.data?.message || "Login failed");
+      toast.error(error.response?.data?.message || "Login failed");
     }
   };
 

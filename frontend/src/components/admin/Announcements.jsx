@@ -17,6 +17,11 @@ const Announcements = () => {
     const [imageFile, setImageFile] = useState(null);
     const [imagePreview, setImagePreview] = useState(null);
     const prevObjectUrlRef = useRef(null);
+    const [viewersModalOpen, setViewersModalOpen] = useState(false);
+    const [viewers, setViewers] = useState([]);
+    const [viewersLoading, setViewersLoading] = useState(false);
+    const [viewersTitle, setViewersTitle] = useState('');
+    const [viewersSearch, setViewersSearch] = useState('');
 
     useEffect(() => {
         fetchAnnouncements();
@@ -407,15 +412,31 @@ const Announcements = () => {
                                     </p>
                                     <div className="d-flex justify-content-end gap-2 mt-2">
                                         <div className="d-flex align-items-center me-2">
-                                            <button
-                                                className="btn btn-sm btn-outline-secondary"
-                                                title={`${announcement.seenCount ?? (announcement.seen ? announcement.seen.length : 0)} users saw this announcement`}
-                                                style={{ cursor: 'default' }}
-                                                disabled
-                                            >
-                                                <span style={{ marginRight: 6 }}>👁</span>
-                                                {announcement.seenCount ?? (announcement.seen ? announcement.seen.length : 0)}
-                                            </button>
+                                                    <button
+                                                        className="btn btn-sm btn-outline-secondary"
+                                                        title={`${announcement.seenCount ?? (announcement.seen ? announcement.seen.length : 0)} users saw this announcement`}
+                                                        onClick={async () => {
+                                                            // fetch viewers and open modal
+                                                            try {
+                                                                setViewersLoading(true);
+                                                                const res = await axios.get(`${import.meta.env.VITE_SERVER_URL}/admin-api/announcement/${announcement._id}/viewers`, {
+                                                                    headers: { Authorization: `Bearer ${token}` }
+                                                                });
+                                                                setViewers(res.data.viewers || []);
+                                                                setViewersTitle(announcement.title || 'Viewers');
+                                                                setViewersModalOpen(true);
+                                                            } catch (err) {
+                                                                console.error('Failed to fetch viewers', err);
+                                                                setViewers([]);
+                                                                setViewersModalOpen(true);
+                                                            } finally {
+                                                                setViewersLoading(false);
+                                                            }
+                                                        }}
+                                                    >
+                                                        <span style={{ marginRight: 6 }}>👁</span>
+                                                        {announcement.seenCount ?? (announcement.seen ? announcement.seen.length : 0)}
+                                                    </button>
                                         </div>
                                         {isToday(announcement.createdAt) && (
                                             <button
@@ -438,6 +459,76 @@ const Announcements = () => {
                     )}
                 </div>
             </div>
+            {/* Viewers modal */}
+            {viewersModalOpen && (
+                <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setViewersModalOpen(false)}>
+                    <div onClick={(e) => e.stopPropagation()} style={{ backgroundColor: 'white', borderRadius: 8, width: '90%', maxWidth: 560, maxHeight: '80vh', overflowY: 'auto', boxShadow: '0 10px 30px rgba(0,0,0,0.2)' }}>
+                        <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+                            <strong style={{ flex: 1 }}>{viewersTitle}</strong>
+                            <button className="btn btn-sm btn-light" onClick={() => setViewersModalOpen(false)}>Close</button>
+                        </div>
+                        <div style={{ padding: '0.75rem 1rem 0.25rem 1rem', borderBottom: '1px solid #f1f1f1' }}>
+                            <input
+                                type="search"
+                                className="form-control"
+                                placeholder="Search by name or roll number..."
+                                value={viewersSearch}
+                                onChange={(e) => setViewersSearch(e.target.value)}
+                                autoFocus
+                            />
+                        </div>
+                        <div style={{ padding: '1rem' }}>
+                            {viewersLoading ? (
+                                <div className="text-center py-3">Loading...</div>
+                            ) : viewers.length === 0 ? (
+                                <div className="text-center py-3">No viewers yet</div>
+                            ) : (
+                                (() => {
+                                    // Filter and sort viewers based on search term
+                                    const q = (viewersSearch || '').trim().toLowerCase();
+                                    const ranked = (viewers || []).slice().filter(v => {
+                                        if (!q) return true;
+                                        const name = (v.name || '').toLowerCase();
+                                        const roll = (v.rollNumber || '').toLowerCase();
+                                        return name.includes(q) || roll.includes(q);
+                                    }).map(v => {
+                                        const name = (v.name || '').toLowerCase();
+                                        const roll = (v.rollNumber || '').toLowerCase();
+                                        let rank = 4;
+                                        if (!q) rank = 0;
+                                        else if (name.startsWith(q)) rank = 0;
+                                        else if (roll.startsWith(q)) rank = 1;
+                                        else if (name.includes(q)) rank = 2;
+                                        else if (roll.includes(q)) rank = 3;
+                                        return { v, rank };
+                                    }).sort((a, b) => {
+                                        if (a.rank !== b.rank) return a.rank - b.rank;
+                                        // tie-breaker: alphabetical by name
+                                        const na = (a.v.name || '').toLowerCase();
+                                        const nb = (b.v.name || '').toLowerCase();
+                                        if (na < nb) return -1;
+                                        if (na > nb) return 1;
+                                        return 0;
+                                    });
+
+                                    return (
+                                        <ul className="list-group">
+                                            {ranked.map(({ v }) => (
+                                                <li key={v.id} className="list-group-item d-flex justify-content-between align-items-center">
+                                                    <div>
+                                                        <div style={{ fontWeight: 600 }}>{v.name || 'Unknown'}</div>
+                                                        <div style={{ color: '#6c757d', fontSize: '0.9rem' }}>{v.rollNumber || '—'}</div>
+                                                    </div>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    );
+                                })()
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

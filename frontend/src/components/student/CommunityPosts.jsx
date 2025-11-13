@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 // import { useUser } from '../context/UserContext';
 import { MessageSquare, Image, Send, Search, Filter } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 
 const CommunityPosts = () => {
     const { user } = useUser();
@@ -61,7 +62,7 @@ const CommunityPosts = () => {
         e.preventDefault();
 
         if (!content.trim() && !selectedImage) {
-            alert('Please enter some content or select an image');
+            toast.error('Please enter some content or select an image');
             return;
         }
 
@@ -102,7 +103,7 @@ const CommunityPosts = () => {
             setSelectedImage(null);
             setImagePreview(null);
 
-            alert('Post created successfully!');
+            toast.success('Post created successfully!');
         } catch (error) {
             setError('Failed to create post');
             console.error(error);

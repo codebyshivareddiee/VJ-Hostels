@@ -10,7 +10,11 @@ const studentSchema = new mongoose.Schema({
     rollNumber: {
         type: String,
         required: true,
-        // unique: true
+        unique: true
+    },
+    year: {
+        type: String,
+        required: true
     },
     username: {
         type: String,
@@ -55,6 +59,10 @@ const studentSchema = new mongoose.Schema({
     is_active: {
         type: Boolean,
         default: true
+    },
+    isBookmarked: {
+        type: Boolean,
+        default: false
     },
     room: {
         type: String,

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import useCurrentUser from '../../hooks/student/useCurrentUser';
+import { toast } from 'react-hot-toast';
 
 function StudentProfile() {
   const { user, loading, updateUser } = useCurrentUser();
@@ -155,10 +156,10 @@ function StudentProfile() {
       );
       if (response.data.success) {
         updateUser({ ...user, ...profileData });
-        alert('Profile updated successfully');
+        toast.success('Profile updated successfully');
       }
     } catch (error) {
-      alert(error.response?.data?.message || 'Failed to update profile');
+      toast.error(error.response?.data?.message || 'Failed to update profile');
     }
   };
 

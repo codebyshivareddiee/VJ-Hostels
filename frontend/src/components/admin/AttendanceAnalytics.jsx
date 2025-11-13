@@ -16,6 +16,7 @@ import {
   Activity
 } from 'lucide-react';
 import axios from 'axios';
+import StudentDetailsModal from './StudentDetailsModal';
 
 const AttendanceAnalytics = () => {
   // State management
@@ -34,6 +35,15 @@ const AttendanceAnalytics = () => {
   const [guardActivity, setGuardActivity] = useState([]);
   const [alerts, setAlerts] = useState([]);
   const [homePassFlow, setHomePassFlow] = useState({});
+  const [homePassList, setHomePassList] = useState([]);
+  const [studentsBase, setStudentsBase] = useState([]); // all active students
+  const [attendanceMap, setAttendanceMap] = useState({}); // rollNumber -> { status, markedBy, markedAt, roomNumber, floor }
+  const [attendanceList, setAttendanceList] = useState([]); // raw attendance records for selected date
+  const [studentsList, setStudentsList] = useState([]); // merged + filtered view list
+  const [studentSearch, setStudentSearch] = useState('');
+  const [studentView, setStudentView] = useState('absent'); // 'absent' | 'present' | 'home_pass' | 'unmarked'
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [selectedRollNumber, setSelectedRollNumber] = useState('');
   
   // Filter states
   const [floors, setFloors] = useState([]);
@@ -59,14 +69,171 @@ const AttendanceAnalytics = () => {
         fetchGuardActivity(),
         fetchAlerts(),
         fetchHomePassFlow(),
-        fetchFilters()
+        fetchHomePassList(), // Added fetch for Home Pass (Used) students list
+        fetchFilters(),
+        fetchActiveStudents(),
+        fetchAttendanceForDate()
       ]);
+      recomputeStudentsList();
     } catch (error) {
       console.error('Error fetching analytics data:', error);
     } finally {
       setLoading(false);
     }
   };
+
+  const fetchActiveStudents = async () => {
+    try {
+      const res = await axios.get(`${import.meta.env.VITE_SERVER_URL}/admin-api/get-active-students`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('admin_token')}` }
+      });
+      setStudentsBase(Array.isArray(res.data) ? res.data : []);
+    } catch (error) {
+      console.error('Error fetching active students:', error);
+      setStudentsBase([]);
+    }
+  };
+
+  const fetchAttendanceForDate = async () => {
+    try {
+      const res = await axios.get(`${import.meta.env.VITE_SERVER_URL}/admin-api/attendance/export`, {
+        params: { date: selectedDate, format: 'json' },
+        headers: { Authorization: `Bearer ${localStorage.getItem('admin_token')}` }
+      });
+      const list = Array.isArray(res.data) ? res.data : [];
+      const map = {};
+      list.forEach(r => {
+        // latest record wins if duplicates
+        map[r.rollNumber] = {
+          status: r.status,
+          markedBy: r.markedBy,
+          markedByName: r.markedByName,
+          markedAt: r.markedAt,
+          roomNumber: r.roomNumber,
+          floor: r.floor
+        };
+      });
+      setAttendanceMap(map);
+      setAttendanceList(list);
+    } catch (error) {
+      console.error('Error fetching attendance map:', error);
+      setAttendanceMap({});
+    }
+  };
+
+  const recomputeStudentsList = () => {
+    // roomNumber -> floor map from roomData
+    const roomFloorMap = new Map(roomData.map(r => [String(r.roomNumber), r.floor]));
+    const q = studentSearch.toLowerCase();
+
+    const merged = studentsBase.map(s => {
+      const att = attendanceMap[s.rollNumber] || {};
+      const roomNum = s.room || att.roomNumber || '';
+      const floor = att.floor ?? roomFloorMap.get(String(roomNum));
+      const statusRaw = att.status || null;
+      // normalize home pass bucket
+      const status = statusRaw && (String(statusRaw).includes('home_pass') || String(statusRaw).includes('late_pass'))
+        ? 'home_pass'
+        : statusRaw;
+      return {
+        name: s.name,
+        rollNumber: s.rollNumber,
+        roomNumber: roomNum,
+        branch: s.branch,
+        year: s.year,
+        email: s.email,
+        phoneNumber: s.phoneNumber,
+        floor: floor,
+        status: status,
+        markedBy: att.markedBy,
+        markedByName: att.markedByName,
+        markedAt: att.markedAt
+      };
+    });
+
+    // If viewing present: derive from attendance records
+    if (studentView === 'present') {
+      const fromAttendance = attendanceList.filter(r => {
+        const status = String(r.status || '').toLowerCase();
+        const floorMatch = selectedFloor !== '' ? String(r.floor) === String(selectedFloor) : true;
+        return status === 'present' && floorMatch;
+      }).map(r => {
+        const s = studentsBase.find(x => x.rollNumber === r.rollNumber) || {};
+        return {
+          name: s.name || r.studentName || '-',
+          rollNumber: r.rollNumber,
+          roomNumber: r.roomNumber,
+          floor: r.floor,
+          status: 'present',
+          markedBy: r.markedBy,
+          markedByName: r.markedByName,
+          markedAt: r.markedAt
+        };
+      });
+      const searched = fromAttendance.filter(s =>
+        (s.name || '').toLowerCase().includes(q) ||
+        (s.rollNumber || '').toLowerCase().includes(q) ||
+        (s.roomNumber ? String(s.roomNumber) : '').toLowerCase().includes(q)
+      ).sort((a, b) => (parseInt(a.roomNumber) || 999999) - (parseInt(b.roomNumber) || 999999));
+      setStudentsList(searched);
+      return;
+    }
+
+    // If viewing home_pass: derive from homePassList to include students without AttendanceRecord
+    if (studentView === 'home_pass') {
+      const base = homePassList.filter(h => {
+        const floorMatch = selectedFloor !== '' ? String(h.floor) === String(selectedFloor) : true;
+        return floorMatch;
+      }).map(h => ({
+        name: h.name || '-',
+        rollNumber: h.rollNumber,
+        roomNumber: h.roomNumber || '',
+        floor: h.floor,
+        status: 'home_pass',
+        markedAt: h.outTime
+      }));
+      const searched = base.filter(s =>
+        (s.name || '').toLowerCase().includes(q) ||
+        (s.rollNumber || '').toLowerCase().includes(q) ||
+        (s.roomNumber ? String(s.roomNumber) : '').toLowerCase().includes(q)
+      ).sort((a, b) => (parseInt(a.roomNumber) || 999999) - (parseInt(b.roomNumber) || 999999));
+      setStudentsList(searched);
+      return;
+    }
+
+    // For absent/unmarked view, continue with merged base
+    const byFloor = selectedFloor !== ''
+      ? merged.filter(s => String(s.floor) === String(selectedFloor))
+      : merged;
+
+    // Absent: explicitly absent only. Unmarked: no status only.
+    const byView = (studentView === 'unmarked')
+      ? byFloor.filter(s => !s.status)
+      : byFloor.filter(s => s.status === 'absent');
+
+    // search
+    const searched = byView.filter(s =>
+      (s.name || '').toLowerCase().includes(q) ||
+      (s.rollNumber || '').toLowerCase().includes(q) ||
+      (s.roomNumber ? String(s.roomNumber) : '').toLowerCase().includes(q) ||
+      (s.status || '').toLowerCase().includes(q)
+    );
+
+    // sort by room number
+    searched.sort((a, b) => (parseInt(a.roomNumber) || 999999) - (parseInt(b.roomNumber) || 999999));
+    setStudentsList(searched);
+  };
+
+  useEffect(() => {
+    recomputeStudentsList();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [studentsBase, attendanceMap, homePassList, roomData, selectedFloor, studentSearch, studentView]);
+
+  // Refetch latest attendance records when switching tabs to present/home_pass/absent
+  useEffect(() => {
+    fetchAttendanceForDate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [studentView]);
 
   const fetchKPIData = async () => {
     try {
@@ -151,6 +318,19 @@ const AttendanceAnalytics = () => {
       setHomePassFlow(response.data);
     } catch (error) {
       console.error('Error fetching home pass flow:', error);
+    }
+  };
+
+  const fetchHomePassList = async () => {
+    try {
+      const response = await axios.get(`${import.meta.env.VITE_SERVER_URL}/admin-api/attendance/homepass-list`, {
+        params: { date: selectedDate, floors: selectedFloor },
+        headers: { Authorization: `Bearer ${localStorage.getItem('admin_token')}` }
+      });
+      setHomePassList(response.data || []);
+    } catch (error) {
+      console.error('Error fetching home pass list:', error);
+      setHomePassList([]);
     }
   };
 
@@ -243,10 +423,10 @@ const AttendanceAnalytics = () => {
             CSV
           </button>
           
-          <button style={styles.exportBtn} onClick={() => exportData('pdf')}>
+          {/* <button style={styles.exportBtn} onClick={() => exportData('pdf')}>
             <FileText size={16} />
             PDF
-          </button>
+          </button> */}
         </div>
       </header>
 
@@ -285,30 +465,6 @@ const AttendanceAnalytics = () => {
               ))}
             </select>
           </div>
-
-          <div style={styles.filterGroup}>
-            <label style={styles.filterLabel}>
-              <Filter size={16} style={{ marginRight: '0.5rem' }} />
-              Compare
-            </label>
-            <div style={styles.compareContainer}>
-              <input
-                type="checkbox"
-                checked={compareMode}
-                onChange={(e) => setCompareMode(e.target.checked)}
-                style={styles.checkbox}
-              />
-              {compareMode && (
-                <input
-                  type="date"
-                  value={compareDate}
-                  onChange={(e) => setCompareDate(e.target.value)}
-                  max={new Date().toISOString().split('T')[0]}
-                  style={styles.filterInput}
-                />
-              )}
-            </div>
-          </div>
         </div>
       </div>
 
@@ -317,7 +473,7 @@ const AttendanceAnalytics = () => {
         <div style={{...styles.card, borderLeft: '5px solid #3B82F6'}}>
           <div style={styles.cardHeader}>
             <div>
-              <p style={styles.cardTitle}>Campus Total</p>
+              <p style={styles.cardTitle}>Total</p>
               <h3 style={styles.cardValue}>{kpiData.totalStudents ?? 0}</h3>
             </div>
             <div style={{...styles.iconBox, backgroundColor: '#3B82F615', color: '#3B82F6'}}>
@@ -383,42 +539,92 @@ const AttendanceAnalytics = () => {
               <Activity size={24} />
             </div>
           </div>
-          <p style={styles.subtitleSmall}>Rooms with attendance submitted</p>
+          <p style={styles.subtitleSmall}>
+            {selectedFloor !== ''
+              ? `Rooms on Floor ${selectedFloor} with attendance submitted`
+              : 'Rooms with attendance submitted'}
+          </p>
         </div>
 
       </div>
 
-      {/* Alerts Panel */}
-      {alerts.length > 0 && (
-        <div style={styles.alertsPanel}>
-          <div style={styles.alertsHeader}>
-            <AlertTriangle size={20} />
-            <span>Alerts & Exceptions</span>
-          </div>
-          <div style={styles.alertsList}>
-            {alerts.map((alert, index) => (
-              <div key={index} style={{...styles.alertItem, ...styles.alertSeverity(alert.severity)}}>
-                <div>
-                  <strong>{alert.title}</strong>
-                  <p style={{margin: '0.25rem 0 0 0', fontSize: '0.875rem'}}>{alert.message}</p>
-                </div>
-                <div style={styles.alertTime}>
-                  {new Date(alert.timestamp).toLocaleTimeString()}
-                </div>
-              </div>
-            ))}
+      <div style={styles.listCard}>
+        <div style={styles.listHeaderRow}>
+          <h3 style={styles.listTitle}>Students</h3>
+          <div style={{display:'flex', gap:'0.5rem', alignItems:'center'}}>
+            <div style={styles.filterButtons}>
+              <button
+                style={{...styles.filterBtn, ...(studentView==='absent'?styles.filterBtnActive:{})}}
+                onClick={() => setStudentView('absent')}
+              >Absent</button>
+              <button
+                style={{...styles.filterBtn, ...(studentView==='present'?styles.filterBtnActive:{})}}
+                onClick={() => setStudentView('present')}
+              >Present</button>
+              <button
+                style={{...styles.filterBtn, ...(studentView==='home_pass'?styles.filterBtnActive:{})}}
+                onClick={() => setStudentView('home_pass')}
+              >Home Pass</button>
+              <button
+                style={{...styles.filterBtn, ...(studentView==='unmarked'?styles.filterBtnActive:{})}}
+                onClick={() => setStudentView('unmarked')}
+              >Unmarked</button>
+            </div>
+            <input
+              type="text"
+              value={studentSearch}
+              onChange={(e) => setStudentSearch(e.target.value)}
+              placeholder="Search by name, roll, room, email..."
+              style={styles.searchInput}
+            />
           </div>
         </div>
-      )}
-
-      {/* Summary Message */}
-      <div style={styles.summaryCard}>
-        <h3 style={styles.summaryTitle}>Analytics Summary</h3>
-        <p style={styles.summaryText}>
-          This attendance analytics dashboard provides comprehensive insights into daily attendance patterns, 
-          home pass usage, and security guard activity. Use the filters above to analyze specific dates and floors.
-        </p>
+        {studentsList.length === 0 ? (
+          <div style={styles.emptyState}>No records found.</div>
+        ) : (
+          <div style={styles.tableWrapper}>
+            <table style={styles.table}>
+              <thead>
+                <tr>
+                  <th style={styles.th}>Name</th>
+                  <th style={styles.th}>Roll</th>
+                  <th style={styles.th}>Room</th>
+                  <th style={styles.th}>Status</th>
+                  {/* <th style={styles.th}>Marked By</th> */}
+                  <th style={styles.th}>Marked At</th>
+                  <th style={styles.th}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {studentsList.map((s, idx) => (
+                  <tr key={`${s.rollNumber}-${idx}`}>
+                    <td style={styles.td}>{s.name}</td>
+                    <td style={styles.td}>{s.rollNumber}</td>
+                    <td style={styles.td}>{s.roomNumber}</td>
+                    <td style={{...styles.td, ...styles.statusCell(s.status)}}>{s.status || 'unmarked'}</td>
+                    {/* <td style={styles.td}>{s.markedByName || s.markedBy || '-'}</td> */}
+                    <td style={styles.td}>{s.markedAt ? new Date(s.markedAt).toLocaleTimeString() : '-'}</td>
+                    <td style={styles.td}>
+                      <button
+                        style={styles.viewBtn}
+                        onClick={() => { setSelectedRollNumber(s.rollNumber); setShowDetailsModal(true); }}
+                      >View Details</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
+
+      <StudentDetailsModal
+        show={showDetailsModal}
+        onClose={() => setShowDetailsModal(false)}
+        rollNumber={selectedRollNumber}
+        onStudentUpdated={() => { fetchActiveStudents(); fetchAttendanceForDate(); }}
+        allowEdit={false}
+      />
     </div>
   );
 };
@@ -558,7 +764,7 @@ const styles = {
   },
   kpiGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+    gridTemplateColumns: 'repeat(5, 1fr)',
     gap: '1.5rem',
     marginBottom: '2rem'
   },
@@ -660,6 +866,94 @@ const styles = {
     border: '1px solid #E5E7EB',
     textAlign: 'center'
   },
+  listCard: {
+    background: 'white',
+    borderRadius: '12px',
+    padding: '1.5rem',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+    border: '1px solid #E5E7EB',
+    marginBottom: '2rem'
+  },
+  listHeaderRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '1rem'
+  },
+  listTitle: {
+    margin: 0,
+    fontSize: '1.125rem',
+    fontWeight: 600,
+    color: '#1E293B'
+  },
+  searchInput: {
+    padding: '0.5rem 0.75rem',
+    border: '2px solid #E5E7EB',
+    borderRadius: '8px',
+    fontSize: '0.875rem',
+    width: '280px'
+  },
+  tableWrapper: {
+    width: '100%',
+    overflowX: 'auto'
+  },
+  filterButtons: {
+    display: 'inline-flex',
+    border: '1px solid #E5E7EB',
+    borderRadius: '8px',
+    overflow: 'hidden'
+  },
+  filterBtn: {
+    padding: '0.5rem 0.75rem',
+    background: 'white',
+    border: 'none',
+    borderRight: '1px solid #E5E7EB',
+    cursor: 'pointer',
+    color: '#475569',
+    fontWeight: 600
+  },
+  filterBtnActive: {
+    background: '#EEF2FF',
+    color: '#4F46E5'
+  },
+  viewBtn: {
+    padding: '0.4rem 0.75rem',
+    background: '#3B82F6',
+    color: 'white',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '0.8rem',
+    fontWeight: 600
+  },
+  table: {
+    width: '100%',
+    borderCollapse: 'separate',
+    borderSpacing: 0
+  },
+  th: {
+    textAlign: 'left',
+    padding: '0.75rem 1rem',
+    fontSize: '0.85rem',
+    color: '#64748B',
+    borderBottom: '1px solid #E5E7EB',
+    background: '#F8FAFC'
+  },
+  td: {
+    padding: '0.75rem 1rem',
+    borderBottom: '1px solid #F1F5F9',
+    fontSize: '0.9rem',
+    color: '#0F172A'
+  },
+  emptyState: {
+    padding: '1rem',
+    color: '#64748B'
+  },
+  statusCell: (status) => ({
+    color: status === 'present' ? '#10B981' : status === 'absent' ? '#EF4444' : '#64748B',
+    fontWeight: 600,
+    textTransform: 'capitalize'
+  }),
   summaryTitle: {
     fontSize: '1.25rem',
     fontWeight: '600',

@@ -14,6 +14,7 @@ import {
     LineElement,
     Filler
 } from 'chart.js';
+import { toast } from 'react-hot-toast';
 import { Bar, Pie, Line, Doughnut } from 'react-chartjs-2';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
@@ -144,10 +145,10 @@ const FoodAnalytics = () => {
                 console.error('[Setup] Error setting up request:', error.message);
             }
             
-            alert(`Error fetching analytics: ${error.response?.data?.message || error.message}`);
+            toast.error(`Error fetching analytics: ${error.response?.data?.message || error.message}`);
             console.log('[Fallback] Loading default analytics data due to error');
             setAnalyticsData(getDefaultAnalyticsData());
-            console.error('========== ANALYTICS DATA FETCH ERROR END ==========\n');
+            console.error('========== ANALYTICS DATA FETCH ERROR END ==========' + "\n");
         } finally {
             setLoading(false);
             console.log('[Loading] setLoading(false) called');
@@ -224,7 +225,7 @@ const FoodAnalytics = () => {
         try {
             const element = dashboardRef.current;
             if (!element) {
-                alert('Dashboard content not found');
+                toast.error('Dashboard content not found');
                 return;
             }
 
@@ -271,10 +272,10 @@ const FoodAnalytics = () => {
 
             pdf.save(`Analytics_Report_${new Date().getTime()}.pdf`);
             console.log('[PDF Export] ✓ PDF exported successfully');
-            alert('PDF exported successfully!');
+            toast.success('PDF exported successfully!');
         } catch (error) {
             console.error('[PDF Export] Error:', error);
-            alert('Error exporting PDF: ' + error.message);
+            toast.error('Error exporting PDF: ' + error.message);
         }
     };
 
@@ -441,10 +442,10 @@ const FoodAnalytics = () => {
             // Save presentation
             pres.save(`Analytics_Report_${new Date().getTime()}.pptx`);
             console.log('[PPT Export] ✓ PowerPoint exported successfully');
-            alert('PowerPoint exported successfully!');
+            toast.success('PowerPoint exported successfully!');
         } catch (error) {
             console.error('[PPT Export] Error:', error);
-            alert('Error exporting PowerPoint: ' + error.message);
+            toast.error('Error exporting PowerPoint: ' + error.message);
         }
     };
 

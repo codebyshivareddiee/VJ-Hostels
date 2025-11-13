@@ -203,10 +203,18 @@ adminApp.put('/student-delete', verifyAdmin, expressAsyncHandler(async (req, res
 
         const oldRoomNumber = student.room; // Store for auto-sync
 
-        // Clear the student's room and deactivate
-        student.room = "";
-        student.is_active = false;
-        await student.save();
+        // Update the student using findOneAndUpdate to avoid validation issues
+        const updatedStudent = await Student.findOneAndUpdate(
+            { rollNumber },
+            { 
+                room: "",
+                is_active: false
+            },
+            { 
+                new: true,
+                runValidators: false // Skip validation to avoid required field issues
+            }
+        );
 
         // ✅ AUTOMATIC SYNC: Update the room immediately after student deactivation
         if (oldRoomNumber) {
@@ -221,7 +229,7 @@ adminApp.put('/student-delete', verifyAdmin, expressAsyncHandler(async (req, res
 
         res.status(200).json({
             message: "Student deactivated successfully and unassigned from room",
-            student
+            student: updatedStudent
         });
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -239,17 +247,6 @@ adminApp.get('/get-active-students', verifyAdmin, expressAsyncHandler(async (req
     }
 }));
 
-// to get all inactive students
-adminApp.get('/get-inactive-students', verifyAdmin, expressAsyncHandler(async (req, res) => {
-    try {
-        const inactiveStudents = await Student.find({ is_active: false })
-            .sort({ room: 1, rollNumber: 1 }); // Sort by room number, then by roll number
-        res.status(200).json(inactiveStudents);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-}));
-
 // to get student details by roll number
 adminApp.get('/student-details/:rollNumber', verifyAdmin, expressAsyncHandler(async (req, res) => {
     try {
@@ -261,6 +258,50 @@ adminApp.get('/student-details/:rollNumber', verifyAdmin, expressAsyncHandler(as
         }
 
         res.status(200).json(student);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+}));
+
+// Toggle bookmark for a student
+adminApp.put('/toggle-bookmark/:rollNumber', verifyAdmin, expressAsyncHandler(async (req, res) => {
+    try {
+        const { rollNumber } = req.params;
+        
+        const student = await Student.findOne({ rollNumber });
+        if (!student) {
+            return res.status(404).json({ message: "Student not found" });
+        }
+
+        // Toggle the bookmark status using findOneAndUpdate to avoid validation issues
+        const updatedStudent = await Student.findOneAndUpdate(
+            { rollNumber },
+            { isBookmarked: !student.isBookmarked },
+            { 
+                new: true,
+                runValidators: false // Skip validation to avoid required field issues
+            }
+        );
+
+        res.status(200).json({ 
+            message: updatedStudent.isBookmarked ? "Student bookmarked successfully" : "Student unbookmarked successfully",
+            isBookmarked: updatedStudent.isBookmarked,
+            student: updatedStudent
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+}));
+
+// Get all bookmarked students
+adminApp.get('/get-bookmarked-students', verifyAdmin, expressAsyncHandler(async (req, res) => {
+    try {
+        const bookmarkedStudents = await Student.find({ 
+            is_active: true,
+            isBookmarked: true 
+        }).sort({ name: 1 });
+        
+        res.status(200).json(bookmarkedStudents);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -400,6 +441,21 @@ adminApp.get('/all-announcements', verifyAdmin, expressAsyncHandler(async (req, 
     }
 }))
 
+// Get viewers for a specific announcement (names and roll numbers)
+adminApp.get('/announcement/:id/viewers', verifyAdmin, expressAsyncHandler(async (req, res) => {
+    try {
+        const { id } = req.params;
+        const announcement = await Announcement.findById(id).populate('seen', 'name rollNumber');
+        if (!announcement) return res.status(404).json({ message: 'Announcement not found' });
+
+        // Return only the populated student info
+        const viewers = Array.isArray(announcement.seen) ? announcement.seen.map(s => ({ id: s._id, name: s.name, rollNumber: s.rollNumber })) : [];
+        res.status(200).json({ viewers });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+}));
+
 // to read today's announcements
 adminApp.get('/announcements', verifyAdmin, expressAsyncHandler(async (req, res) => {
     try {
@@ -429,33 +485,6 @@ adminApp.get('/announcements', verifyAdmin, expressAsyncHandler(async (req, res)
         res.status(500).json({ error: error.message });
     }
 }))
-
-
-// // to post community message
-// adminApp.post('/post-community-message', expressAsyncHandler(async (req, res) => {
-//     try {
-//         const { content, images, postedBy, category } = req.body;
-
-//         const newPost = new CommunityPost({ content, images, postedBy, category });
-
-//         await newPost.save();
-
-//         res.status(201).json({ message: "Community message posted successfully", post: newPost });
-//     } catch (error) {
-//         res.status(500).json({ error: error.message });
-//     }
-// }));
-
-// to read community messages
-adminApp.get('/get-community-messages', verifyAdmin, expressAsyncHandler(async (req, res) => {
-    try {
-        const communityPosts = await CommunityPost.find().sort({ createdAt: -1 });
-
-        res.status(200).json(communityPosts);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-}));
 
 
 //  // complaints section
@@ -506,7 +535,7 @@ adminApp.put('/mark-complaint-solved/:id', verifyAdmin, expressAsyncHandler(asyn
 adminApp.put('/update-outpass-status/:id', verifyAdmin, expressAsyncHandler(async (req, res) => {
     try {
         const { id } = req.params;
-        const { status } = req.body;
+        const { status, rejectionReason } = req.body;
         const crypto = require('crypto');
 
         if (!['approved', 'rejected'].includes(status)) {
@@ -518,12 +547,22 @@ adminApp.put('/update-outpass-status/:id', verifyAdmin, expressAsyncHandler(asyn
             return res.status(404).json({ message: "Outpass not found" });
         }
 
-        // Generate QR code if approved
+        // Update adminApproval object
         if (status === 'approved') {
+            // Generate QR code if approved
             const timestamp = Date.now();
             const randomString = crypto.randomBytes(8).toString('hex');
             outpass.qrCodeData = `${outpass._id}-${outpass.rollNumber}-${timestamp}-${randomString}`;
-            outpass.approvedAt = new Date();
+            
+            outpass.adminApproval.status = 'approved';
+            outpass.adminApproval.approvedAt = new Date();
+        } else if (status === 'rejected') {
+            outpass.adminApproval.status = 'rejected';
+            outpass.adminApproval.rejectedAt = new Date();
+            // Store rejection reason if provided
+            if (rejectionReason) {
+                outpass.adminApproval.rejectionReason = rejectionReason;
+            }
         }
 
         outpass.status = status;
@@ -540,6 +579,43 @@ adminApp.get('/pending-outpasses', verifyAdmin, expressAsyncHandler(async (req, 
     try {
         const pendingOutpasses = await Outpass.find({ status: 'pending' });
         res.status(200).json({ pendingOutpasses });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+}));
+
+// to read all outpasses (for history)
+adminApp.get('/all-outpasses', verifyAdmin, expressAsyncHandler(async (req, res) => {
+    try {
+        // Use aggregation to join with Student collection and get year
+        const outpasses = await Outpass.aggregate([
+            {
+                $sort: { createdAt: -1 }
+            },
+            {
+                $lookup: {
+                    from: 'students', // MongoDB collection name (lowercase + pluralized)
+                    localField: 'rollNumber',
+                    foreignField: 'rollNumber',
+                    as: 'studentInfo'
+                }
+            },
+            {
+                $addFields: {
+                    studentYear: { $arrayElemAt: ['$studentInfo.year', 0] }
+                }
+            },
+            {
+                $project: {
+                    studentInfo: 0 // Remove the studentInfo array to reduce payload size
+                }
+            }
+        ]);
+        
+        // Get unique years from Student collection
+        const uniqueYears = await Student.distinct('year');
+        
+        res.status(200).json({ outpasses, uniqueYears: uniqueYears.sort() });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -643,13 +719,14 @@ adminApp.put('/update-student/:id', verifyAdmin, expressAsyncHandler(async (req,
         const oldRoomNumber = student.room; // Store for auto-sync
         const roomChanged = roomNumber !== student.room;
 
-        // Update student details
-        student.name = name || student.name;
-        student.branch = branch || student.branch;
-        student.phoneNumber = phoneNumber || student.phoneNumber;
-        student.email = email || student.email;
-        student.parentMobileNumber = parentMobileNumber || student.parentMobileNumber;
-        student.room = roomNumber !== undefined ? roomNumber : student.room;
+    // Update student details
+    student.name = name || student.name;
+    student.branch = branch || student.branch;
+    student.year = year !== undefined ? year : student.year; // allow updating batch/year
+    student.phoneNumber = phoneNumber || student.phoneNumber;
+    student.email = email || student.email;
+    student.parentMobileNumber = parentMobileNumber || student.parentMobileNumber;
+    student.room = roomNumber !== undefined ? roomNumber : student.room;
 
         await student.save();
 
@@ -672,6 +749,21 @@ adminApp.put('/update-student/:id', verifyAdmin, expressAsyncHandler(async (req,
             student
         });
     } catch (error) {
+        console.error('Error updating student:', error);
+
+        // Handle duplicate key (unique) errors gracefully
+        if (error.name === 'MongoServerError' && error.code === 11000) {
+            // extract the duplicated field
+            const field = Object.keys(error.keyValue || {})[0];
+            return res.status(400).json({ message: `Duplicate value for field: ${field}` });
+        }
+
+        // Handle Mongoose validation errors
+        if (error.name === 'ValidationError') {
+            const messages = Object.values(error.errors).map(e => e.message).join('; ');
+            return res.status(400).json({ message: messages });
+        }
+
         res.status(500).json({ error: error.message });
     }
 }));

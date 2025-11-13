@@ -90,24 +90,37 @@ const Profile = () => {
                                 </div>
                                 <div>
                                     <h4 className="mb-1">{admin?.name || 'Admin'}</h4>
-                                    <p className="text-muted mb-0">{admin?.role || 'Administrator'}</p>
+                                    <p className="text-muted mb-0 text-capitalize">{admin?.role || 'Administrator'}</p>
                                 </div>
                             </div>
 
                             <div className="mb-3">
                                 <label className="form-label text-muted">Username</label>
-                                <p className="form-control-plaintext">{admin?.username || 'admin'}</p>
+                                <p className="form-control-plaintext">{admin?.username || 'N/A'}</p>
                             </div>
 
                             <div className="mb-3">
                                 <label className="form-label text-muted">Email</label>
-                                <p className="form-control-plaintext">{admin?.email || 'admin@example.com'}</p>
+                                <p className="form-control-plaintext">{admin?.email || 'N/A'}</p>
                             </div>
+
+                            {admin?.googleId && (
+                                <div className="mb-3">
+                                    <label className="form-label text-muted">Google ID</label>
+                                    <p className="form-control-plaintext">{admin.googleId}</p>
+                                </div>
+                            )}
 
                             <div className="mb-3">
                                 <label className="form-label text-muted">Account Created</label>
                                 <p className="form-control-plaintext">
-                                    {admin?.createdAt ? new Date(admin.createdAt).toLocaleString() : 'N/A'}
+                                    {admin?.createdAt ? new Date(admin.createdAt).toLocaleDateString('en-US', {
+                                        year: 'numeric',
+                                        month: 'long',
+                                        day: 'numeric',
+                                        hour: '2-digit',
+                                        minute: '2-digit'
+                                    }) : 'N/A'}
                                 </p>
                             </div>
                         </div>

@@ -3,7 +3,7 @@ import axios from 'axios';
 import { useAdmin } from '../../context/AdminContext';
 import EditStudentModal from './EditStudentModal';
 
-const StudentDetailsModal = ({ show, onClose, rollNumber, onStudentUpdated }) => {
+const StudentDetailsModal = ({ show, onClose, rollNumber, onStudentUpdated, allowEdit = true }) => {
     const [student, setStudent] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -135,7 +135,7 @@ const StudentDetailsModal = ({ show, onClose, rollNumber, onStudentUpdated }) =>
                         )}
                     </div>
                     <div className="modal-footer">
-                        {student && (
+                        {student && allowEdit && (
                             <button
                                 type="button"
                                 className="btn btn-primary me-auto"
@@ -148,7 +148,7 @@ const StudentDetailsModal = ({ show, onClose, rollNumber, onStudentUpdated }) =>
                     </div>
 
                     {/* Edit Student Modal */}
-                    {showEditModal && student && (
+                    {allowEdit && showEditModal && student && (
                         <EditStudentModal
                             show={showEditModal}
                             onClose={() => setShowEditModal(false)}

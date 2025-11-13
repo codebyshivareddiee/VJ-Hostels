@@ -90,7 +90,7 @@ export const initPerformanceMonitoring = () => {
           clsValue += entry.value;
         }
       }
-      console.log('CLS:', clsValue);
+      // console.log('CLS:', clsValue);
       
       if (window.gtag && clsValue > 0) {
         window.gtag('event', 'web_vitals', {

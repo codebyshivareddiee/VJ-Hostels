@@ -8,6 +8,37 @@ const expressAsyncHandler = require('express-async-handler');
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
+// Helper: determine operational attendance date and whether marking is allowed now
+function getOperationalAttendanceDate(now = new Date()) {
+  const current = new Date(now);
+  const today = new Date(current);
+  today.setHours(0, 0, 0, 0);
+
+  const startWindow = new Date(today); // 9:00 PM today
+  startWindow.setHours(21, 0, 0, 0);
+
+  const endWindow = new Date(today); // 4:00 AM next day
+  endWindow.setDate(endWindow.getDate() + 1);
+  endWindow.setHours(4, 0, 0, 0);
+
+  let allowed = false;
+  let attendanceDate = new Date(today); // default to today
+
+  if (current >= startWindow && current < endWindow) {
+    // In marking window that spans midnight
+    allowed = true;
+    // Between midnight and 4 AM -> attendance belongs to previous calendar day
+    if (current.getHours() < 4) {
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      attendanceDate = yesterday;
+    }
+  }
+
+  attendanceDate.setHours(0, 0, 0, 0);
+  return { attendanceDate, allowed, startWindow, endWindow };
+}
+
 // Middleware to verify security role
 const verifySecurityRole = (req, res, next) => {
   try {
@@ -71,9 +102,15 @@ attendanceRouter.get('/floor/:floorNumber/rooms', expressAsyncHandler(async (req
     const { floorNumber } = req.params;
     const { date } = req.query;
 
-    // Parse date or use today
-    const attendanceDate = date ? new Date(date) : new Date();
-    attendanceDate.setHours(0, 0, 0, 0);
+    // Parse date if provided else use operational date (9 PM to 4 AM window)
+    let attendanceDate;
+    if (date) {
+      attendanceDate = new Date(date);
+      attendanceDate.setHours(0, 0, 0, 0);
+    } else {
+      const { attendanceDate: opDate } = getOperationalAttendanceDate();
+      attendanceDate = opDate;
+    }
 
     const rooms = await Room.find({ floor: parseInt(floorNumber) })
       .populate({
@@ -88,17 +125,33 @@ attendanceRouter.get('/floor/:floorNumber/rooms', expressAsyncHandler(async (req
       date: attendanceDate
     });
 
-    // Get active outpasses for today
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    // Get active outpasses for the selected date window [attendanceDate, nextDay)
+    const nextDay = new Date(attendanceDate);
+    nextDay.setDate(nextDay.getDate() + 1);
 
     const activeOutpasses = await Outpass.find({
       status: { $in: ['approved', 'out'] },
       type: { $in: ['home pass', 'late pass'] },
-      outTime: { $lte: tomorrow },
-      inTime: { $gte: today }
+      $or: [
+        // Approved passes planned for the selected day
+        { status: 'approved', outTime: { $gte: attendanceDate, $lt: nextDay } },
+        // Students who are currently out during the selected day (inTime may be null until they return)
+        {
+          status: 'out',
+          $and: [
+            { $or: [
+              { actualOutTime: { $gte: attendanceDate, $lt: nextDay } },
+              { outTime: { $gte: attendanceDate, $lt: nextDay } }
+            ]},
+            { $or: [ { inTime: null }, { inTime: { $gte: attendanceDate } } ] }
+          ]
+        },
+        // Any pass that overlaps the selected day window
+        {
+          outTime: { $lt: nextDay },
+          inTime: { $gte: attendanceDate }
+        }
+      ]
     });
 
     // Create a map of student attendance
@@ -110,7 +163,7 @@ attendanceRouter.get('/floor/:floorNumber/rooms', expressAsyncHandler(async (req
     // Create a map of students with outpasses (home pass and late pass)
     const outpassMap = {};
     activeOutpasses.forEach(pass => {
-      const studentKey = pass.rollNumber;
+      const studentKey = pass.rollNumber; // Outpass model stores rollNumber; used to match student.rollNumber
       let status;
       
       if (pass.type === 'home pass') {
@@ -189,19 +242,25 @@ attendanceRouter.post('/mark-room', expressAsyncHandler(async (req, res) => {
       return res.status(400).json({ message: "Invalid request data" });
     }
 
-    // Parse date or use today
-    const attendanceDate = date ? new Date(date) : new Date();
-    attendanceDate.setHours(0, 0, 0, 0);
+    // Parse date if provided else use operational date (9 PM to 4 AM window)
+    let attendanceDate;
+    if (date) {
+      attendanceDate = new Date(date);
+      attendanceDate.setHours(0, 0, 0, 0);
+    } else {
+      const { attendanceDate: opDate } = getOperationalAttendanceDate();
+      attendanceDate = opDate;
+    }
 
-    // Validate: Only allow marking attendance for today
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    if (attendanceDate.getTime() !== today.getTime()) {
-      return res.status(403).json({ 
-        message: "Cannot mark attendance for past or future dates. Only today's attendance can be marked.",
-        requestedDate: attendanceDate.toISOString().split('T')[0],
-        todayDate: today.toISOString().split('T')[0]
+    // Validate time window: Only allow marking 21:00 - 04:00
+    const { allowed, startWindow, endWindow } = getOperationalAttendanceDate();
+    if (!allowed) {
+      return res.status(403).json({
+        message: 'Attendance can be marked only between 9:00 PM and 4:00 AM.',
+        allowedWindow: {
+          start: startWindow.toTimeString().split(' ')[0],
+          end: endWindow.toTimeString().split(' ')[0]
+        }
       });
     }
 
@@ -271,19 +330,25 @@ attendanceRouter.post('/mark-floor', expressAsyncHandler(async (req, res) => {
       return res.status(400).json({ message: "Invalid request data" });
     }
 
-    // Parse date or use today
-    const attendanceDate = date ? new Date(date) : new Date();
-    attendanceDate.setHours(0, 0, 0, 0);
+    // Parse date if provided else use operational date (9 PM to 4 AM window)
+    let attendanceDate;
+    if (date) {
+      attendanceDate = new Date(date);
+      attendanceDate.setHours(0, 0, 0, 0);
+    } else {
+      const { attendanceDate: opDate } = getOperationalAttendanceDate();
+      attendanceDate = opDate;
+    }
 
-    // Validate: Only allow marking attendance for today
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    if (attendanceDate.getTime() !== today.getTime()) {
-      return res.status(403).json({ 
-        message: "Cannot mark attendance for past or future dates. Only today's attendance can be marked.",
-        requestedDate: attendanceDate.toISOString().split('T')[0],
-        todayDate: today.toISOString().split('T')[0]
+    // Validate time window: Only allow marking 21:00 - 04:00
+    const { allowed, startWindow, endWindow } = getOperationalAttendanceDate();
+    if (!allowed) {
+      return res.status(403).json({
+        message: 'Attendance can be marked only between 9:00 PM and 4:00 AM.',
+        allowedWindow: {
+          start: startWindow.toTimeString().split(' ')[0],
+          end: endWindow.toTimeString().split(' ')[0]
+        }
       });
     }
 
