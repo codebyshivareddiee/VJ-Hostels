@@ -14,6 +14,7 @@ const bcrypt = require('bcrypt');
 require('dotenv').config();
 const verifyAdmin = require('../middleware/verifyAdminMiddleware');
 const roomSyncService = require('../services/roomSyncService');
+const adminAttendanceRoutes = require('../routes/adminAttendanceRoutes');
 
 
 
@@ -1726,5 +1727,8 @@ adminApp.post('/rooms/generate-all', verifyAdmin, expressAsyncHandler(async (req
         res.status(500).json({ error: error.message });
     }
 }));
+
+// Attendance Analytics Routes
+adminApp.use('/attendance', verifyAdmin, adminAttendanceRoutes);
 
 module.exports = adminApp;

@@ -24,7 +24,7 @@ const attendanceRecordSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['present', 'absent', 'home_pass_approved', 'home_pass_used'],
+    enum: ['present', 'absent', 'home_pass_approved', 'home_pass_used', 'late_pass_approved', 'late_pass_used'],
     required: true
   },
   date: {

@@ -18,7 +18,7 @@ import axios from 'axios';
 import './AttendanceStyles.css';
 
 const Attendance = () => {
-  const [view, setView] = useState('dashboard'); // 'dashboard', 'floor'
+  const [view, setView] = useState('floor'); // Skip dashboard, go directly to floor view
   const [selectedFloor, setSelectedFloor] = useState(null);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [floors, setFloors] = useState([]);
@@ -371,141 +371,45 @@ const Attendance = () => {
     }
   };
 
-  const renderDashboard = () => (
-    <div className="attendance-container">
-      {/* Header */}
-      <div className="attendance-header">
-        <div>
-          <h1 className="attendance-title">
-            <Users size={32} style={{ verticalAlign: 'middle', marginRight: '10px' }} />
-            Attendance Management
-          </h1>
-          <p className="attendance-subtitle">Track and manage daily student attendance</p>
-        </div>
-        <div className="date-selector">
-          <Calendar size={20} />
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            max={new Date().toISOString().split('T')[0]}
-            className="date-input"
-          />
-        </div>
-      </div>
-
-      {/* Summary Cards */}
-      {summary && (
-        <div className="summary-grid">
-          <div className="summary-card" style={{ borderLeftColor: '#4CAF50' }}>
-            <div className="summary-content">
-              <div>
-                <p className="summary-label">Present</p>
-                <h2 className="summary-value">{summary.statusCounts.present}/{summary.totalStudents}</h2>
-              </div>
-              <CheckCircle size={48} color="#4CAF50" />
-            </div>
-          </div>
-
-          <div className="summary-card" style={{ borderLeftColor: '#F44336' }}>
-            <div className="summary-content">
-              <div>
-                <p className="summary-label">Absent</p>
-                <h2 className="summary-value">
-                  {summary.totalStudents - summary.statusCounts.present - (summary.statusCounts.home_pass_approved + summary.statusCounts.home_pass_used + summary.statusCounts.late_pass_approved + summary.statusCounts.late_pass_used)}/{summary.totalStudents}
-                </h2>
-              </div>
-              <XCircle size={48} color="#F44336" />
-            </div>
-          </div>
-
-          <div className="summary-card" style={{ borderLeftColor: '#FF9800' }}>
-            <div className="summary-content">
-              <div>
-                <p className="summary-label">Home Pass</p>
-                <h2 className="summary-value">
-                  {(summary.statusCounts.home_pass_approved || 0) + (summary.statusCounts.home_pass_used || 0)}/{summary.totalStudents}
-                </h2>
-              </div>
-              <Home size={48} color="#FF9800" />
-            </div>
-          </div>
-
-          <div className="summary-card" style={{ borderLeftColor: '#9C27B0' }}>
-            <div className="summary-content">
-              <div>
-                <p className="summary-label">Late Pass</p>
-                <h2 className="summary-value">
-                  {(summary.statusCounts.late_pass_approved || 0) + (summary.statusCounts.late_pass_used || 0)}/{summary.totalStudents}
-                </h2>
-              </div>
-              <Clock size={48} color="#9C27B0" />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Floor Selection with Progress */}
-      <div className="floor-selection-section">
-        <h2 className="section-title">Select Floor to Mark Attendance</h2>
-        <div className="floor-grid">
-          {floors.map((floor) => {
-            // Find progress for this floor
-            const floorProgress = summary?.floorProgress?.find(fp => fp.floor === floor._id);
-            const percentage = floorProgress?.percentage || 0;
-            const marked = floorProgress?.marked || 0;
-            const total = floorProgress?.total || floor.roomCount;
-
-            return (
-              <button
-                key={floor._id}
-                className="floor-button"
-                onClick={() => {
-                  setSelectedFloor(floor._id);
-                  setView('floor');
-                }}
-              >
-                <Building size={32} />
-                <h3>Floor {floor._id}</h3>
-                <p>{floor.roomCount} Rooms</p>
-                <p>{floor.totalOccupants} Students</p>
-                
-                {/* Progress Bar */}
-                <div className="floor-progress-bar-container">
-                  <div 
-                    className="floor-progress-bar-fill" 
-                    style={{ width: `${percentage}%` }}
-                  />
-                </div>
-                <p className="floor-progress-text">
-                  {marked} / {total} rooms ({percentage}%)
-                </p>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
+  // Dashboard removed - going directly to floor view
 
   const renderFloorView = () => (
     <div className="attendance-container">
       {/* Compact Header - Sticky */}
       <div className="floor-header-sticky">
         <div className="floor-header-top">
-          <button className="back-button-compact" onClick={() => {
-            setView('dashboard');
-            setSelectedFloor(null);
-            setSearchQuery('');
-          }}>
-            <ArrowLeft size={16} />
-          </button>
           <div className="floor-info">
-            <h2 className="floor-title">
+            <div className="floor-selector-header">
               <Building size={20} />
-              Floor {selectedFloor}
-            </h2>
-            <p className="floor-date">{selectedDate}</p>
+              <select
+                className="floor-dropdown-header"
+                value={selectedFloor || ''}
+                onChange={(e) => {
+                  const floorId = e.target.value ? parseInt(e.target.value) : null;
+                  setSelectedFloor(floorId);
+                  if (floorId === null) {
+                    setRooms([]);
+                  }
+                }}
+              >
+                <option value="">Select Floor...</option>
+                {floors.map((floor) => (
+                  <option key={floor._id} value={floor._id}>
+                    Floor {floor._id}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="floor-date-selector">
+              <Calendar size={16} />
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                max={new Date().toISOString().split('T')[0]}
+                className="date-input-compact"
+              />
+            </div>
           </div>
         </div>
         
@@ -710,7 +614,7 @@ const Attendance = () => {
           {notification.message}
         </div>
       )}
-      {view === 'dashboard' ? renderDashboard() : renderFloorView()}
+      {renderFloorView()}
     </div>
   );
 };
