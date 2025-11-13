@@ -13,7 +13,7 @@ const Outpasses = () => {
     // Filter states
     const [filterType, setFilterType] = useState(''); // '' | 'home pass' | 'late pass'
     const [filterBatch, setFilterBatch] = useState(''); // year
-    const [filterApprovalStatus, setFilterApprovalStatus] = useState('pending_admin_approval'); // 'pending_admin_approval' | 'pending_parent_approval'
+    const [filterApprovalStatus, setFilterApprovalStatus] = useState(''); // '' | 'pending' | 'pending_admin_approval' | 'pending_parent_approval'
     
     // Confirmation modal states
     const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -109,7 +109,8 @@ const Outpasses = () => {
             }
         } else {
             // In normal view (not history), only show pending statuses
-            if (!['pending_admin_approval', 'pending_parent_approval'].includes(outpass.status)) {
+            const pendingStatuses = ['pending', 'pending_admin_approval', 'pending_parent_approval'];
+            if (!pendingStatuses.includes(outpass.status)) {
                 return false;
             }
             
@@ -184,6 +185,7 @@ const Outpasses = () => {
                                     onChange={(e) => setFilterApprovalStatus(e.target.value)}
                                 >
                                     <option value="">All</option>
+                                    <option value="pending">Waiting Approval (Legacy)</option>
                                     <option value="pending_admin_approval">Waiting Admin Approval</option>
                                     <option value="pending_parent_approval">Waiting Parent Approval</option>
                                 </select>

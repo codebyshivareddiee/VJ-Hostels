@@ -16,7 +16,8 @@ import {
   ChevronRight,
   Building,
   MessageCircle,
-  User
+  User,
+  BarChart3
 } from 'lucide-react';
 import logo from '../assets/vnrvjiet-logo.png';
 import axios from 'axios';
@@ -197,6 +198,12 @@ const AdminLayout = () => {
             to="/admin/outpasses"
             onClick={closeSidebarOnMobile}
             badge={pendingOutpassCount}
+          />
+          <SidebarNavItem 
+            icon={<BarChart3 size={20} />} 
+            label="Attendance" 
+            to="/admin/attendance-analytics"
+            onClick={closeSidebarOnMobile}
           />
           <SidebarNavItem 
             icon={<Utensils size={20} />} 

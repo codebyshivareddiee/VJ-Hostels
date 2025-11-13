@@ -12,6 +12,7 @@ require('./config/passport');
 
 const authRoutes = require('./routes/authRoutes');
 const securityRoutes = require('./routes/securityRoutes');
+const attendanceRoutes = require('./routes/attendanceRoutes');
 const roomSyncService = require('./services/roomSyncService');
 const roomChangeStreamWatcher = require('./services/roomChangeStreamWatcher');
 
@@ -81,6 +82,7 @@ app.use('/api/admin/visitors', adminVisitorApp);
 app.use('/outpass-api', outpassApp);
 app.use('/api/otp', otpRoutes);
 app.use('/security-api', securityRoutes);
+app.use('/attendance-api', attendanceRoutes);
 // app.use('/complaint-api',complaintApp);
 app.use('/auth', authRoutes);
 

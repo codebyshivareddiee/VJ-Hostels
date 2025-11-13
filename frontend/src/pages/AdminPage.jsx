@@ -6,6 +6,7 @@ import Rooms from '../components/admin/Rooms';
 import Announcements from '../components/admin/Announcements';
 import Complaints from '../components/admin/Complaints';
 import Outpasses from '../components/admin/Outpasses';
+import AttendanceAnalytics from '../components/admin/AttendanceAnalytics';
 import Food from '../components/admin/Food';
 import Visitors from '../components/admin/Visitors';
 import Profile from '../components/admin/Profile';
@@ -20,6 +21,7 @@ function AdminPage() {
         <Route path="announcements" element={<Announcements />} />
         <Route path="complaints" element={<Complaints />} />
         <Route path="outpasses" element={<Outpasses />} />
+        <Route path="attendance-analytics" element={<AttendanceAnalytics />} />
         <Route path="food" element={<Food />} />
         <Route path="visitors" element={<Visitors />} />
         <Route path="profile" element={<Profile />} />
